@@ -39,7 +39,9 @@ CDL_TO_CROP = {
     "Sunflower": "sunflower", "Canola": "canola", "Rape Seed": "canola", "Cotton": "cotton",
     "Sugarcane": "sugarcane", "Sugarbeets": "sugar_beets", "Alfalfa": "alfalfa", "Onions": "onions", "Mint": "mint",
     "Rye": "rye_cover", "Mustard": "mustard_cover", "Vetch": "vetch_cover", "Radishes": "radish_cover",
-    "Fallow/Idle Cropland": "fallow", "Grassland/Pasture": "pasture", "Other Hay/Non Alfalfa": "hay",
+    "Fallow/Idle Cropland": "fallow", "Other Hay/Non Alfalfa": "hay",
+    # CropScape returns "Grass/Pasture" (seen live); keep the long form just in case
+    "Grass/Pasture": "pasture", "Grassland/Pasture": "pasture",
 }
 
 _sem = asyncio.Semaphore(4)
