@@ -42,7 +42,7 @@ export async function getFieldProfile(field) {
   return profile
 }
 
-export function getInsights(field, history, resources) {
+export function getInsights(field, history, resources, priorities) {
   return request('/fields/insights', {
     method: 'POST',
     body: JSON.stringify({
@@ -50,6 +50,7 @@ export function getInsights(field, history, resources) {
       name: field.name,
       history,
       resources,
+      priorities,
     }),
   })
 }

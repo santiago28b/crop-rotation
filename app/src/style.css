@@ -1048,8 +1048,25 @@ h1 {
   font-size: 0.82rem;
 }
 
+.priority-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 20rem);
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.priority-row select {
+  width: 100%;
+}
+
 @media (max-width: 760px) {
   .recommendation-columns {
     grid-template-columns: 1fr;
+  }
+
+  .priority-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
   }
 }

@@ -16,6 +16,13 @@ const requestError = ref('')
 const reportCrops = ref([])
 const currentCrops = ref([])
 const waterSupplies = ref([])
+const priorities = reactive({ water: 0.5, soil_health: 0.5, income: 0.5, low_risk: 0.5 })
+const priorityQuestions = [
+  { key: 'water', label: 'Using less water' },
+  { key: 'soil_health', label: 'Building soil health' },
+  { key: 'income', label: 'Income potential' },
+  { key: 'low_risk', label: 'Lower risk' },
+]
 
 function reportCropId(id) {
   return id === 'maize' ? 'corn_silage' : id
@@ -180,7 +187,7 @@ async function saveResources() {
         .filter((id) => reportCrops.value.some((crop) => crop.crop === id))
         .map((crop) => ({ crop }))
       const [insights, report] = await Promise.all([
-        getInsights(field, history, buildInsightsResources(answer)),
+        getInsights(field, history, buildInsightsResources(answer), { ...priorities }),
         currentCrops.value[index]
           ? getProfitReport(field, currentCrops.value[index], waterSupplies.value[index], reportHistory)
           : Promise.resolve(null),
@@ -264,6 +271,18 @@ function cropName(id) {
             :multiple="question.multiple"
             :exclusive-option="question.exclusiveOption"
           />
+        </section>
+        <section class="resource-section priority-section">
+          <h2>What matters most when choosing crops?</h2>
+          <p class="field-card-help">Choose “Equal” if you do not have a strong preference.</p>
+          <label v-for="priority in priorityQuestions" :key="priority.key" class="priority-row" :for="`priority-${priority.key}`">
+            <span>{{ priority.label }}</span>
+            <select :id="`priority-${priority.key}`" v-model.number="priorities[priority.key]" @change="saved = false">
+              <option :value="0.25">Less important</option>
+              <option :value="0.5">Equal</option>
+              <option :value="1">More important</option>
+            </select>
+          </label>
         </section>
 
         <div class="resource-submit-row">
