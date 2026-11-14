@@ -81,3 +81,24 @@ Returns `options` (current crop first, then ranked), each with expected and dry-
 **Climate:** fetched from NASA POWER for each field's own location (snapped to NASA's ~0.5° grid) and cached in `data/cache/`. The first request for an area takes a few seconds; after that it's instant. If NASA can't be reached, the engine uses placeholder climate and says so in the report.
 
 **Placeholders to replace:** every number in `data/crops.csv` (marked `source = placeholder`) and the water assumptions at the top of `app/engine.py`.
+
+## NASA-data insights API (fields → crop candidates)
+
+Lives in `app/insights/` (algorithms), `app/sources/` (NASA POWER, SoilGrids, SSURGO, CropScape CDL), `app/routers/`
+(FastAPI routes, mounted into the same `app.main:app`). Design and decisions: `docs/plan.md`, `docs/conversation-log.md`.
+
+| Endpoint | What it does |
+|---|---|
+| `POST /fields/profile` | Field polygon (GeoJSON, or a Leaflet `Feature`) → crop history (US, CDL), soil, climate normals and the 2001-12 → 2013-25 shift. Shown to the farmer to confirm. |
+| `POST /fields/history` | Crop history only; re-poll when `status` is `partial`/`loading` (CropScape is slow). |
+| `POST /fields/insights` | Confirmed history + resources + priorities → ranked candidate crops with planting/harvest windows, water need, N credit, rotation yield modifier, risks, evidence, gaps. Input for the economics model. |
+| `GET /catalog/crops` | Master crop list (`app/data/crops.yaml`, FAO EcoCrop / FAO-56 values). |
+| `GET /meta/sources` | Datasets behind the numbers. |
+
+```
+uv venv --python 3.12 .venv && uv pip install -r requirements.txt --python .venv/bin/python
+.venv/bin/uvicorn app.main:app --reload          # http://localhost:8000/docs
+.venv/bin/pytest -q                               # offline tests (both engines)
+PYTHONPATH=. .venv/bin/python scripts/smoke_test.py   # live run: Idaho, Colombia, South Africa demo fields
+```
+Automatic crop history is US-only (USDA CDL); elsewhere the farmer enters it. Everything else is global.

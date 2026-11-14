@@ -26,3 +26,6 @@ data/processed/
 
 # Cached NASA downloads
 data/cache/
+
+# API response cache
+data/cache/

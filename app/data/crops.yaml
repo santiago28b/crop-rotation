@@ -1,0 +1,597 @@
+# Master crop list — the agronomic side of the contract. Economics (prices, yields, costs)
+# lives with the economics model, keyed by `id`.
+#
+# Sources (values are typical / approximate and MUST be verified before the final pitch):
+#   - FAO EcoCrop database: temp_c, rain_mm (over the growing cycle), ph, cycle_days, frost
+#   - FAO Irrigation & Drainage Paper 56, Tables 11 & 12: kc (ini/mid/end), stage_days
+#   - Nitrogen numbers: typical extension-service ranges (kg N/ha). credit_to_next = N left
+#     for the following crop (legumes, alfalfa).
+#   - min_return_years: minimum years before the same crop should return (disease / pest cycles)
+#
+# Units: °C, mm, kg/ha, days, m.
+#
+# Field meaning:
+#   cycle_days        min/typ/max planting->harvest (EcoCrop); typ drives the harvest window
+#   gdd               base temperature and (if known) degree-days to maturity (base_c, to_maturity)
+#   temp_c            EcoCrop envelope: abs_min < opt_min <= opt_max < abs_max (mean temp over cycle)
+#   rain_mm           EcoCrop envelope for total rain over the cycle (rainfed)
+#   kill_frost_c      air temperature that kills the crop (used for the planting window)
+#   kc / stage_days   FAO-56 crop coefficient and stage lengths [initial, development, mid, late]
+#   sensitive_stage   fraction of cycle where heat hurts most, with the heat threshold
+#   fall_sown         true for crops planted before winter and harvested next summer
+#   role              cash | cover | forage
+#   harvester_class   grain_combine | root_harvester | forage_harvester | cotton_picker | cane_harvester | manual | none
+
+crops:
+  - id: maize
+    name: Maize (grain corn)
+    family: Poaceae
+    role: cash
+    cycle_days: {min: 90, typ: 130, max: 180}
+    gdd: {base_c: 10, to_maturity: 1400}
+    temp_c: {abs_min: 10, opt_min: 18, opt_max: 33, abs_max: 47}
+    rain_mm: {abs_min: 400, opt_min: 600, opt_max: 1200, abs_max: 1800}
+    ph: {abs_min: 4.5, opt_min: 5.5, opt_max: 7.0, abs_max: 8.5}
+    kill_frost_c: -1
+    kc: {ini: 0.30, mid: 1.20, end: 0.60}
+    stage_days: [30, 40, 50, 30]
+    sensitive_stage: {start_frac: 0.45, end_frac: 0.62, name: silking, heat_threshold_c: 35}
+    root_depth_m: 1.5
+    nitrogen: {requirement_kg_ha: 180, credit_to_next_kg_ha: 0}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: row_planter
+    rainfed_ok: true
+
+  - id: wheat_spring
+    name: Spring wheat
+    family: Poaceae
+    role: cash
+    cycle_days: {min: 90, typ: 125, max: 160}
+    gdd: {base_c: 0, to_maturity: 1600}
+    temp_c: {abs_min: 5, opt_min: 15, opt_max: 23, abs_max: 30}
+    rain_mm: {abs_min: 300, opt_min: 500, opt_max: 900, abs_max: 1600}
+    ph: {abs_min: 5.0, opt_min: 5.5, opt_max: 7.5, abs_max: 8.5}
+    kill_frost_c: -6
+    kc: {ini: 0.30, mid: 1.15, end: 0.30}
+    stage_days: [20, 30, 45, 30]
+    sensitive_stage: {start_frac: 0.50, end_frac: 0.70, name: heading/grain fill, heat_threshold_c: 32}
+    root_depth_m: 1.2
+    nitrogen: {requirement_kg_ha: 120, credit_to_next_kg_ha: 0}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: grain_drill
+    rainfed_ok: true
+
+  - id: wheat_winter
+    name: Winter wheat
+    family: Poaceae
+    role: cash
+    fall_sown: true
+    cycle_days: {min: 220, typ: 270, max: 310}
+    gdd: {base_c: 0, to_maturity: 2000}
+    temp_c: {abs_min: 3, opt_min: 12, opt_max: 23, abs_max: 30}
+    rain_mm: {abs_min: 300, opt_min: 500, opt_max: 900, abs_max: 1600}
+    ph: {abs_min: 5.0, opt_min: 5.5, opt_max: 7.5, abs_max: 8.5}
+    kill_frost_c: -20
+    kc: {ini: 0.40, mid: 1.15, end: 0.30}
+    stage_days: [30, 140, 60, 40]
+    sensitive_stage: {start_frac: 0.75, end_frac: 0.90, name: grain fill, heat_threshold_c: 32}
+    root_depth_m: 1.5
+    nitrogen: {requirement_kg_ha: 130, credit_to_next_kg_ha: 0}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: grain_drill
+    rainfed_ok: true
+
+  - id: barley
+    name: Barley
+    family: Poaceae
+    role: cash
+    cycle_days: {min: 80, typ: 110, max: 150}
+    gdd: {base_c: 0, to_maturity: 1400}
+    temp_c: {abs_min: 4, opt_min: 15, opt_max: 25, abs_max: 32}
+    rain_mm: {abs_min: 250, opt_min: 450, opt_max: 800, abs_max: 1500}
+    ph: {abs_min: 5.0, opt_min: 6.0, opt_max: 8.0, abs_max: 8.8}
+    kill_frost_c: -6
+    kc: {ini: 0.30, mid: 1.15, end: 0.25}
+    stage_days: [15, 25, 45, 25]
+    sensitive_stage: {start_frac: 0.50, end_frac: 0.70, name: heading/grain fill, heat_threshold_c: 32}
+    root_depth_m: 1.1
+    nitrogen: {requirement_kg_ha: 100, credit_to_next_kg_ha: 0}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: grain_drill
+    rainfed_ok: true
+
+  - id: sorghum
+    name: Grain sorghum
+    family: Poaceae
+    role: cash
+    cycle_days: {min: 90, typ: 120, max: 150}
+    gdd: {base_c: 10, to_maturity: 1300}
+    temp_c: {abs_min: 8, opt_min: 24, opt_max: 35, abs_max: 40}
+    rain_mm: {abs_min: 300, opt_min: 400, opt_max: 800, abs_max: 1500}
+    ph: {abs_min: 5.0, opt_min: 5.5, opt_max: 7.5, abs_max: 8.5}
+    kill_frost_c: -1
+    kc: {ini: 0.30, mid: 1.05, end: 0.55}
+    stage_days: [20, 35, 40, 30]
+    sensitive_stage: {start_frac: 0.50, end_frac: 0.65, name: flowering, heat_threshold_c: 38}
+    root_depth_m: 1.5
+    nitrogen: {requirement_kg_ha: 90, credit_to_next_kg_ha: 0}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: row_planter
+    rainfed_ok: true
+
+  - id: pearl_millet
+    name: Pearl millet
+    family: Poaceae
+    role: cash
+    cycle_days: {min: 60, typ: 90, max: 120}
+    gdd: {base_c: 10, to_maturity: 1100}
+    temp_c: {abs_min: 12, opt_min: 25, opt_max: 35, abs_max: 45}
+    rain_mm: {abs_min: 200, opt_min: 300, opt_max: 700, abs_max: 1000}
+    ph: {abs_min: 4.5, opt_min: 5.5, opt_max: 7.5, abs_max: 8.5}
+    kill_frost_c: 0
+    kc: {ini: 0.30, mid: 1.00, end: 0.30}
+    stage_days: [15, 25, 35, 20]
+    sensitive_stage: {start_frac: 0.50, end_frac: 0.65, name: flowering, heat_threshold_c: 40}
+    root_depth_m: 1.5
+    nitrogen: {requirement_kg_ha: 60, credit_to_next_kg_ha: 0}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: row_planter
+    rainfed_ok: true
+
+  - id: rice_paddy
+    name: Rice (paddy)
+    family: Poaceae
+    role: cash
+    cycle_days: {min: 90, typ: 130, max: 180}
+    gdd: {base_c: 10, to_maturity: 1800}
+    temp_c: {abs_min: 10, opt_min: 20, opt_max: 30, abs_max: 36}
+    rain_mm: {abs_min: 1000, opt_min: 1500, opt_max: 2500, abs_max: 4000}
+    ph: {abs_min: 4.0, opt_min: 5.5, opt_max: 7.0, abs_max: 8.5}
+    kill_frost_c: 0
+    kc: {ini: 1.05, mid: 1.20, end: 0.75}
+    stage_days: [30, 30, 50, 20]
+    sensitive_stage: {start_frac: 0.55, end_frac: 0.70, name: flowering, heat_threshold_c: 35}
+    root_depth_m: 0.5
+    nitrogen: {requirement_kg_ha: 120, credit_to_next_kg_ha: 0}
+    min_return_years: 1
+    tolerates_poor_drainage: true
+    harvester_class: grain_combine
+    planter_class: transplant_or_drill
+    rainfed_ok: true
+
+  - id: soybean
+    name: Soybean
+    family: Fabaceae
+    role: cash
+    cycle_days: {min: 75, typ: 130, max: 200}
+    gdd: {base_c: 10, to_maturity: 1300}
+    temp_c: {abs_min: 10, opt_min: 20, opt_max: 30, abs_max: 38}
+    rain_mm: {abs_min: 450, opt_min: 600, opt_max: 1000, abs_max: 1500}
+    ph: {abs_min: 5.0, opt_min: 6.0, opt_max: 7.0, abs_max: 8.0}
+    kill_frost_c: -1
+    kc: {ini: 0.40, mid: 1.15, end: 0.50}
+    stage_days: [20, 30, 55, 25]
+    sensitive_stage: {start_frac: 0.45, end_frac: 0.70, name: flowering/pod set, heat_threshold_c: 35}
+    root_depth_m: 1.2
+    nitrogen: {requirement_kg_ha: 0, credit_to_next_kg_ha: 40}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: row_planter
+    rainfed_ok: true
+
+  - id: dry_bean
+    name: Dry bean (common bean)
+    family: Fabaceae
+    role: cash
+    cycle_days: {min: 60, typ: 100, max: 150}
+    gdd: {base_c: 10, to_maturity: 1100}
+    temp_c: {abs_min: 10, opt_min: 16, opt_max: 28, abs_max: 35}
+    rain_mm: {abs_min: 300, opt_min: 500, opt_max: 1000, abs_max: 1500}
+    ph: {abs_min: 5.0, opt_min: 5.5, opt_max: 7.0, abs_max: 8.0}
+    kill_frost_c: 0
+    kc: {ini: 0.40, mid: 1.15, end: 0.35}
+    stage_days: [20, 30, 35, 15]
+    sensitive_stage: {start_frac: 0.45, end_frac: 0.65, name: flowering, heat_threshold_c: 32}
+    root_depth_m: 0.8
+    nitrogen: {requirement_kg_ha: 20, credit_to_next_kg_ha: 25}
+    min_return_years: 2
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: row_planter
+    rainfed_ok: true
+
+  - id: chickpea
+    name: Chickpea
+    family: Fabaceae
+    role: cash
+    cycle_days: {min: 90, typ: 120, max: 180}
+    gdd: {base_c: 0, to_maturity: 1500}
+    temp_c: {abs_min: 7, opt_min: 15, opt_max: 29, abs_max: 35}
+    rain_mm: {abs_min: 300, opt_min: 400, opt_max: 700, abs_max: 1000}
+    ph: {abs_min: 5.0, opt_min: 6.0, opt_max: 8.0, abs_max: 8.5}
+    kill_frost_c: -4
+    kc: {ini: 0.40, mid: 1.00, end: 0.35}
+    stage_days: [25, 35, 40, 20]
+    sensitive_stage: {start_frac: 0.50, end_frac: 0.70, name: flowering/pod set, heat_threshold_c: 32}
+    root_depth_m: 1.0
+    nitrogen: {requirement_kg_ha: 0, credit_to_next_kg_ha: 30}
+    min_return_years: 3
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: grain_drill
+    rainfed_ok: true
+
+  - id: lentil
+    name: Lentil
+    family: Fabaceae
+    role: cash
+    cycle_days: {min: 80, typ: 110, max: 140}
+    gdd: {base_c: 0, to_maturity: 1400}
+    temp_c: {abs_min: 6, opt_min: 15, opt_max: 25, abs_max: 30}
+    rain_mm: {abs_min: 250, opt_min: 300, opt_max: 600, abs_max: 1000}
+    ph: {abs_min: 5.0, opt_min: 6.0, opt_max: 8.0, abs_max: 8.5}
+    kill_frost_c: -5
+    kc: {ini: 0.40, mid: 1.10, end: 0.30}
+    stage_days: [20, 30, 40, 20]
+    sensitive_stage: {start_frac: 0.50, end_frac: 0.70, name: flowering/pod set, heat_threshold_c: 30}
+    root_depth_m: 0.8
+    nitrogen: {requirement_kg_ha: 0, credit_to_next_kg_ha: 30}
+    min_return_years: 3
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: grain_drill
+    rainfed_ok: true
+
+  - id: cowpea
+    name: Cowpea
+    family: Fabaceae
+    role: cash
+    cycle_days: {min: 60, typ: 90, max: 150}
+    gdd: {base_c: 10, to_maturity: 1000}
+    temp_c: {abs_min: 12, opt_min: 20, opt_max: 35, abs_max: 38}
+    rain_mm: {abs_min: 300, opt_min: 500, opt_max: 1000, abs_max: 1500}
+    ph: {abs_min: 4.5, opt_min: 5.5, opt_max: 7.0, abs_max: 8.0}
+    kill_frost_c: 0
+    kc: {ini: 0.40, mid: 1.05, end: 0.35}
+    stage_days: [20, 30, 25, 15]
+    sensitive_stage: {start_frac: 0.45, end_frac: 0.65, name: flowering, heat_threshold_c: 38}
+    root_depth_m: 0.9
+    nitrogen: {requirement_kg_ha: 0, credit_to_next_kg_ha: 30}
+    min_return_years: 2
+    tolerates_poor_drainage: false
+    harvester_class: manual
+    planter_class: row_planter
+    rainfed_ok: true
+
+  - id: groundnut
+    name: Groundnut (peanut)
+    family: Fabaceae
+    role: cash
+    cycle_days: {min: 90, typ: 130, max: 180}
+    gdd: {base_c: 10, to_maturity: 1400}
+    temp_c: {abs_min: 10, opt_min: 22, opt_max: 32, abs_max: 40}
+    rain_mm: {abs_min: 400, opt_min: 500, opt_max: 1000, abs_max: 2000}
+    ph: {abs_min: 4.5, opt_min: 5.5, opt_max: 7.0, abs_max: 8.0}
+    kill_frost_c: 0
+    kc: {ini: 0.40, mid: 1.15, end: 0.60}
+    stage_days: [25, 35, 45, 25]
+    sensitive_stage: {start_frac: 0.40, end_frac: 0.70, name: flowering/pegging, heat_threshold_c: 36}
+    root_depth_m: 0.8
+    nitrogen: {requirement_kg_ha: 0, credit_to_next_kg_ha: 30}
+    min_return_years: 2
+    tolerates_poor_drainage: false
+    harvester_class: root_harvester
+    planter_class: row_planter
+    rainfed_ok: true
+
+  - id: potato
+    name: Potato
+    family: Solanaceae
+    role: cash
+    cycle_days: {min: 90, typ: 130, max: 180}
+    gdd: {base_c: 7, to_maturity: 1200}
+    temp_c: {abs_min: 7, opt_min: 15, opt_max: 25, abs_max: 30}
+    rain_mm: {abs_min: 300, opt_min: 500, opt_max: 800, abs_max: 1500}
+    ph: {abs_min: 4.5, opt_min: 5.0, opt_max: 6.5, abs_max: 7.5}
+    kill_frost_c: -2
+    kc: {ini: 0.50, mid: 1.15, end: 0.75}
+    stage_days: [25, 30, 45, 30]
+    sensitive_stage: {start_frac: 0.40, end_frac: 0.75, name: tuber bulking, heat_threshold_c: 30}
+    root_depth_m: 0.6
+    nitrogen: {requirement_kg_ha: 150, credit_to_next_kg_ha: 0}
+    min_return_years: 3
+    tolerates_poor_drainage: false
+    harvester_class: root_harvester
+    planter_class: potato_planter
+    rainfed_ok: true
+
+  - id: cassava
+    name: Cassava
+    family: Euphorbiaceae
+    role: cash
+    cycle_days: {min: 180, typ: 330, max: 720}
+    gdd: {base_c: 13, to_maturity: null}
+    temp_c: {abs_min: 10, opt_min: 20, opt_max: 29, abs_max: 35}
+    rain_mm: {abs_min: 500, opt_min: 1000, opt_max: 1500, abs_max: 5000}
+    ph: {abs_min: 4.0, opt_min: 5.5, opt_max: 6.5, abs_max: 8.0}
+    kill_frost_c: 0
+    kc: {ini: 0.30, mid: 0.80, end: 0.30}
+    stage_days: [150, 40, 110, 60]
+    sensitive_stage: {start_frac: 0.10, end_frac: 0.40, name: establishment/root initiation, heat_threshold_c: 38}
+    root_depth_m: 1.0
+    nitrogen: {requirement_kg_ha: 60, credit_to_next_kg_ha: 0}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: manual
+    planter_class: manual
+    rainfed_ok: true
+
+  - id: sweet_potato
+    name: Sweet potato
+    family: Convolvulaceae
+    role: cash
+    cycle_days: {min: 90, typ: 130, max: 270}
+    gdd: {base_c: 10, to_maturity: null}
+    temp_c: {abs_min: 10, opt_min: 20, opt_max: 30, abs_max: 38}
+    rain_mm: {abs_min: 500, opt_min: 750, opt_max: 1500, abs_max: 5000}
+    ph: {abs_min: 4.5, opt_min: 5.5, opt_max: 6.5, abs_max: 7.5}
+    kill_frost_c: 0
+    kc: {ini: 0.50, mid: 1.15, end: 0.65}
+    stage_days: [20, 30, 50, 30]
+    sensitive_stage: {start_frac: 0.30, end_frac: 0.70, name: root bulking, heat_threshold_c: 36}
+    root_depth_m: 1.0
+    nitrogen: {requirement_kg_ha: 60, credit_to_next_kg_ha: 0}
+    min_return_years: 2
+    tolerates_poor_drainage: false
+    harvester_class: manual
+    planter_class: manual
+    rainfed_ok: true
+
+  - id: sunflower
+    name: Sunflower
+    family: Asteraceae
+    role: cash
+    cycle_days: {min: 80, typ: 120, max: 150}
+    gdd: {base_c: 7, to_maturity: 1400}
+    temp_c: {abs_min: 8, opt_min: 18, opt_max: 28, abs_max: 34}
+    rain_mm: {abs_min: 300, opt_min: 500, opt_max: 1000, abs_max: 1500}
+    ph: {abs_min: 5.0, opt_min: 6.0, opt_max: 7.5, abs_max: 8.5}
+    kill_frost_c: -2
+    kc: {ini: 0.35, mid: 1.10, end: 0.35}
+    stage_days: [25, 35, 40, 20]
+    sensitive_stage: {start_frac: 0.50, end_frac: 0.70, name: flowering, heat_threshold_c: 35}
+    root_depth_m: 2.0
+    nitrogen: {requirement_kg_ha: 90, credit_to_next_kg_ha: 0}
+    min_return_years: 3
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: row_planter
+    rainfed_ok: true
+
+  - id: canola
+    name: Canola / rapeseed (spring)
+    family: Brassicaceae
+    role: cash
+    cycle_days: {min: 90, typ: 110, max: 150}
+    gdd: {base_c: 5, to_maturity: 1500}
+    temp_c: {abs_min: 5, opt_min: 12, opt_max: 25, abs_max: 30}
+    rain_mm: {abs_min: 300, opt_min: 450, opt_max: 900, abs_max: 1500}
+    ph: {abs_min: 5.0, opt_min: 5.5, opt_max: 8.0, abs_max: 8.5}
+    kill_frost_c: -4
+    kc: {ini: 0.35, mid: 1.10, end: 0.35}
+    stage_days: [25, 35, 35, 15]
+    sensitive_stage: {start_frac: 0.45, end_frac: 0.65, name: flowering, heat_threshold_c: 30}
+    root_depth_m: 1.2
+    nitrogen: {requirement_kg_ha: 110, credit_to_next_kg_ha: 0}
+    min_return_years: 3
+    tolerates_poor_drainage: false
+    harvester_class: grain_combine
+    planter_class: grain_drill
+    rainfed_ok: true
+
+  - id: cotton
+    name: Cotton
+    family: Malvaceae
+    role: cash
+    cycle_days: {min: 150, typ: 180, max: 210}
+    gdd: {base_c: 15.5, to_maturity: 1300}
+    temp_c: {abs_min: 15, opt_min: 22, opt_max: 32, abs_max: 45}
+    rain_mm: {abs_min: 500, opt_min: 600, opt_max: 1200, abs_max: 1500}
+    ph: {abs_min: 5.0, opt_min: 5.5, opt_max: 8.0, abs_max: 8.5}
+    kill_frost_c: 0
+    kc: {ini: 0.35, mid: 1.18, end: 0.60}
+    stage_days: [30, 50, 55, 45]
+    sensitive_stage: {start_frac: 0.40, end_frac: 0.70, name: flowering/boll set, heat_threshold_c: 38}
+    root_depth_m: 1.4
+    nitrogen: {requirement_kg_ha: 120, credit_to_next_kg_ha: 0}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: cotton_picker
+    planter_class: row_planter
+    rainfed_ok: true
+
+  - id: sugarcane
+    name: Sugarcane (plant cane)
+    family: Poaceae
+    role: cash
+    cycle_days: {min: 270, typ: 365, max: 540}
+    gdd: {base_c: 10, to_maturity: null}
+    temp_c: {abs_min: 15, opt_min: 24, opt_max: 37, abs_max: 41}
+    rain_mm: {abs_min: 1000, opt_min: 1500, opt_max: 2500, abs_max: 5000}
+    ph: {abs_min: 4.5, opt_min: 5.5, opt_max: 8.0, abs_max: 8.5}
+    kill_frost_c: -1
+    kc: {ini: 0.40, mid: 1.25, end: 0.75}
+    stage_days: [35, 60, 190, 120]
+    sensitive_stage: {start_frac: 0.20, end_frac: 0.60, name: grand growth, heat_threshold_c: 40}
+    root_depth_m: 1.5
+    nitrogen: {requirement_kg_ha: 150, credit_to_next_kg_ha: 0}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: cane_harvester
+    planter_class: manual
+    rainfed_ok: true
+
+  - id: sugar_beet
+    name: Sugar beet
+    family: Amaranthaceae
+    role: cash
+    cycle_days: {min: 140, typ: 170, max: 200}
+    gdd: {base_c: 3, to_maturity: 2200}
+    temp_c: {abs_min: 5, opt_min: 15, opt_max: 25, abs_max: 30}
+    rain_mm: {abs_min: 400, opt_min: 500, opt_max: 900, abs_max: 1500}
+    ph: {abs_min: 5.5, opt_min: 6.5, opt_max: 8.0, abs_max: 8.5}
+    kill_frost_c: -4
+    kc: {ini: 0.35, mid: 1.20, end: 0.70}
+    stage_days: [30, 45, 80, 15]
+    sensitive_stage: {start_frac: 0.30, end_frac: 0.70, name: root bulking, heat_threshold_c: 35}
+    root_depth_m: 1.2
+    nitrogen: {requirement_kg_ha: 120, credit_to_next_kg_ha: 0}
+    min_return_years: 3
+    tolerates_poor_drainage: false
+    harvester_class: root_harvester
+    planter_class: row_planter
+    rainfed_ok: false
+
+  - id: alfalfa
+    name: Alfalfa (perennial forage, 3-5 yr stand)
+    family: Fabaceae
+    role: forage
+    perennial: true
+    cycle_days: {min: 300, typ: 365, max: 365}
+    gdd: {base_c: 5, to_maturity: null}
+    temp_c: {abs_min: 5, opt_min: 15, opt_max: 30, abs_max: 40}
+    rain_mm: {abs_min: 350, opt_min: 500, opt_max: 1000, abs_max: 1500}
+    ph: {abs_min: 5.5, opt_min: 6.5, opt_max: 8.0, abs_max: 8.5}
+    kill_frost_c: -25
+    kc: {ini: 0.40, mid: 0.95, end: 0.90}
+    stage_days: [30, 60, 215, 60]
+    sensitive_stage: {start_frac: 0.30, end_frac: 0.70, name: summer cuts, heat_threshold_c: 38}
+    root_depth_m: 2.5
+    nitrogen: {requirement_kg_ha: 0, credit_to_next_kg_ha: 100}
+    min_return_years: 1
+    tolerates_poor_drainage: false
+    harvester_class: forage_harvester
+    planter_class: grain_drill
+    rainfed_ok: true
+
+  - id: onion
+    name: Onion (dry bulb)
+    family: Amaryllidaceae
+    role: cash
+    cycle_days: {min: 100, typ: 150, max: 200}
+    gdd: {base_c: 5, to_maturity: null}
+    temp_c: {abs_min: 6, opt_min: 15, opt_max: 26, abs_max: 35}
+    rain_mm: {abs_min: 350, opt_min: 500, opt_max: 800, abs_max: 1500}
+    ph: {abs_min: 5.5, opt_min: 6.0, opt_max: 7.5, abs_max: 8.0}
+    kill_frost_c: -3
+    kc: {ini: 0.70, mid: 1.05, end: 0.75}
+    stage_days: [15, 25, 70, 40]
+    sensitive_stage: {start_frac: 0.40, end_frac: 0.80, name: bulbing, heat_threshold_c: 35}
+    root_depth_m: 0.4
+    nitrogen: {requirement_kg_ha: 130, credit_to_next_kg_ha: 0}
+    min_return_years: 3
+    tolerates_poor_drainage: false
+    harvester_class: root_harvester
+    planter_class: precision_seeder
+    rainfed_ok: false
+
+  # ---------- cover crops (no harvest; soil health, erosion, N) ----------
+
+  - id: rye_cover
+    name: Cereal rye (winter cover)
+    family: Poaceae
+    role: cover
+    fall_sown: true
+    cycle_days: {min: 60, typ: 180, max: 240}
+    gdd: {base_c: 0, to_maturity: null}
+    temp_c: {abs_min: 0, opt_min: 10, opt_max: 25, abs_max: 35}
+    rain_mm: {abs_min: 200, opt_min: 300, opt_max: 800, abs_max: 1500}
+    ph: {abs_min: 4.5, opt_min: 5.5, opt_max: 7.5, abs_max: 8.5}
+    kill_frost_c: -30
+    kc: {ini: 0.30, mid: 1.10, end: 0.30}
+    stage_days: [30, 90, 40, 20]
+    sensitive_stage: {start_frac: 0.5, end_frac: 0.8, name: spring growth, heat_threshold_c: 35}
+    root_depth_m: 1.2
+    nitrogen: {requirement_kg_ha: 0, credit_to_next_kg_ha: -10}   # scavenges N, ties some up briefly
+    min_return_years: 0
+    tolerates_poor_drainage: true
+    harvester_class: none
+    planter_class: grain_drill
+    rainfed_ok: true
+
+  - id: mustard_cover
+    name: Mustard (biofumigant cover)
+    family: Brassicaceae
+    role: cover
+    cycle_days: {min: 40, typ: 60, max: 90}
+    gdd: {base_c: 5, to_maturity: null}
+    temp_c: {abs_min: 3, opt_min: 10, opt_max: 25, abs_max: 32}
+    rain_mm: {abs_min: 150, opt_min: 250, opt_max: 600, abs_max: 1200}
+    ph: {abs_min: 5.0, opt_min: 5.5, opt_max: 7.5, abs_max: 8.5}
+    kill_frost_c: -5
+    kc: {ini: 0.35, mid: 1.10, end: 0.35}
+    stage_days: [10, 20, 20, 10]
+    sensitive_stage: {start_frac: 0.5, end_frac: 0.8, name: flowering, heat_threshold_c: 30}
+    root_depth_m: 0.9
+    nitrogen: {requirement_kg_ha: 0, credit_to_next_kg_ha: 0}
+    min_return_years: 0
+    tolerates_poor_drainage: false
+    harvester_class: none
+    planter_class: grain_drill
+    rainfed_ok: true
+
+  - id: vetch_cover
+    name: Hairy vetch (legume winter cover)
+    family: Fabaceae
+    role: cover
+    fall_sown: true
+    cycle_days: {min: 120, typ: 200, max: 240}
+    gdd: {base_c: 0, to_maturity: null}
+    temp_c: {abs_min: 2, opt_min: 10, opt_max: 25, abs_max: 32}
+    rain_mm: {abs_min: 250, opt_min: 400, opt_max: 900, abs_max: 1500}
+    ph: {abs_min: 5.0, opt_min: 6.0, opt_max: 7.5, abs_max: 8.5}
+    kill_frost_c: -20
+    kc: {ini: 0.35, mid: 1.00, end: 0.35}
+    stage_days: [30, 100, 50, 20]
+    sensitive_stage: {start_frac: 0.6, end_frac: 0.9, name: spring flowering, heat_threshold_c: 32}
+    root_depth_m: 0.9
+    nitrogen: {requirement_kg_ha: 0, credit_to_next_kg_ha: 80}
+    min_return_years: 0
+    tolerates_poor_drainage: false
+    harvester_class: none
+    planter_class: grain_drill
+    rainfed_ok: true
+
+  - id: radish_cover
+    name: Tillage radish (deep-root cover)
+    family: Brassicaceae
+    role: cover
+    cycle_days: {min: 40, typ: 70, max: 100}
+    gdd: {base_c: 5, to_maturity: null}
+    temp_c: {abs_min: 3, opt_min: 10, opt_max: 25, abs_max: 32}
+    rain_mm: {abs_min: 150, opt_min: 250, opt_max: 600, abs_max: 1200}
+    ph: {abs_min: 5.0, opt_min: 6.0, opt_max: 7.5, abs_max: 8.5}
+    kill_frost_c: -6
+    kc: {ini: 0.35, mid: 1.00, end: 0.35}
+    stage_days: [10, 20, 30, 10]
+    sensitive_stage: {start_frac: 0.5, end_frac: 0.8, name: taproot growth, heat_threshold_c: 30}
+    root_depth_m: 1.5
+    nitrogen: {requirement_kg_ha: 0, credit_to_next_kg_ha: 20}   # scavenged N released after winter-kill
+    min_return_years: 0
+    tolerates_poor_drainage: false
+    harvester_class: none
+    planter_class: grain_drill
+    rainfed_ok: true

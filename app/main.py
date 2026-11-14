@@ -53,3 +53,11 @@ def report(req: ReportRequest):
         )
     except (ValueError, KeyError) as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# --- NASA-data insights (fields profile/history/insights, crop catalog, data provenance) ---
+from app.routers import crops as catalog_router, fields as fields_router, meta as meta_router  # noqa: E402
+
+app.include_router(fields_router.router)
+app.include_router(catalog_router.router)
+app.include_router(meta_router.router)
