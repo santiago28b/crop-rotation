@@ -19,6 +19,8 @@ from pathlib import Path
 
 import requests
 
+import app.config  # noqa: F401  (loads .env so NASS_API_KEY can live there)
+
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT / "data" / "cache"
 FCC_URL = "https://geo.fcc.gov/api/census/block/find"

@@ -15,10 +15,14 @@ Docs: https://openet.gitbook.io/docs/reference/api-reference/raster
 
 import argparse
 import os
+import sys
 from pathlib import Path
 
 import pandas as pd
 import requests
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import app.config  # noqa: E402,F401  (loads .env so OPENET_API_KEY can live there)
 
 API_URL = "https://openet-api.org/raster/timeseries/point"
 
