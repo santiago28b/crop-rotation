@@ -319,6 +319,14 @@ function cropName(id) {
               normal {{ formatPercent(result.report.year_odds.normal) }},
               wet {{ formatPercent(result.report.year_odds.wet) }}
             </p>
+            <div v-if="result.report?.field_water_use" class="field-water-use">
+              <p v-if="result.report.field_water_use.season_et_in != null">
+                Field water use: about {{ result.report.field_water_use.season_et_in }} in per season
+                <span v-if="result.report.field_water_use.years">({{ result.report.field_water_use.years }})</span>
+              </p>
+              <p>{{ result.report.field_water_use.note }}</p>
+              <small>{{ result.report.field_water_use.source }}</small>
+            </div>
             <article v-for="option in result.report?.options.slice(0, 3) || []" :key="option.crop" class="recommendation-card">
               <h4>{{ option.label || cropName(option.crop) }}</h4>
               <p>{{ option.tag.replaceAll('_', ' ') }}</p>
