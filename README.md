@@ -101,6 +101,19 @@ Returns `options` (current crop first, then ranked), each with expected and dry-
 
 **Placeholders to replace:** every number in `data/crops.csv` (marked `source = placeholder`) and the water assumptions at the top of `app/engine.py`.
 
+## Measured field water use (OpenET)
+
+With `OPENET_API_KEY` set (free: https://account.etdata.org), each report also
+pulls the field's own measured water use: satellite-measured evapotranspiration
+(OpenET Ensemble) at the field center, April-October of the last 3 full years.
+The mean becomes the water need of the farmer's CURRENT crop — a measurement of
+what that field actually uses, replacing the table guess. Other crops keep table
+values (the satellite only saw what was actually planted). If the measurement is
+under half the table need, the field probably wasn't growing that crop (bare
+ground measures like desert): the table value is kept and the report says so.
+The report's `field_water_use` block has the numbers either way. Without a key
+the engine quietly uses table values.
+
 ## Yields and prices by location
 
 The engine looks up the field's state (FCC Census API, no key) and replaces the crop table's yield and price with that state's USDA NASS QuickStats averages (2020 onward) where USDA has them. Each option's `data_notes` says where its yield, price and cost came from.
