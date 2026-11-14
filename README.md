@@ -95,7 +95,7 @@ Without a key the engine uses `data/crops.csv` as is. Costs per acre, crop water
 
 ## Live snowpack (SNOTEL)
 
-With `"snowpack": "auto"` (the default), fields in the Boise area read today's snow water at 4 Boise River SNOTEL stations (Atlanta Summit, Graham Guard Station, Mores Creek Summit, Trinity Mountain) and compare it with the 30-year median for the same day. Under 80% → low-snow year (dry year more likely), over 120% → high. Early in the season, when there's under 1 inch normally, it reports "too early" and assumes normal. No API key needed.
+With `"snowpack": "auto"` (the default), fields in the Boise area read today's snow water at 4 Boise River SNOTEL stations (Atlanta Summit, Graham Guard Station, Mores Creek Summit, Trinity Mountain) and compare it with the NRCS median for the same day (one request; the API sends the median). Under 80% → low-snow year (dry year more likely), over 120% → high. From October to December it reports "too early" and assumes normal, because NRCS starts its water supply forecasts in January and the April 1 snowpack is what sets the irrigation supply. No API key needed. The SNOTEL API randomly refuses about 1 in 4 requests, so the code retries.
 
 ```
 python -m app.snowpack       # prints the current Boise basin snowpack

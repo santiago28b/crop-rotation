@@ -285,6 +285,19 @@ def build_report(field, current_crop: str, water_supply: str = "full",
         else:
             scored[name] = result
 
+    # The report promises at least 3 options. If the area's crop list is short
+    # (say only one crop), top up with crops from the full table that fit here.
+    for name in crops:
+        if len(scored) >= 3:
+            break
+        if name in scored or name in {e["crop"] for e in excluded}:
+            continue
+        if check_fit(crops[name], climate, current_crop):
+            continue
+        result = score_crop(crops[name], water_supply, odds, climate, current_crop)
+        result["problems"] = []
+        scored[name] = result
+
     # Pick the options
     picks: list[tuple[str, str]] = [(current_crop, "current")]
     others = [s for n, s in scored.items() if n != current_crop]
@@ -294,6 +307,11 @@ def build_report(field, current_crop: str, water_supply: str = "full",
         pool = [s for s in others if s["crop"] not in chosen]
         if pool:
             best = max(pool, key=key)
+            # If a crop we already picked beats this one on the same measure,
+            # the tag would be a false claim ("safest in a dry year" on a crop
+            # that loses the most). Call it an alternative instead.
+            if key(best) < key(max(others, key=key)):
+                tag = "alternative"
             picks.append((best["crop"], tag))
             chosen.add(best["crop"])
 
