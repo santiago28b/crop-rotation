@@ -2,13 +2,14 @@
 import { reactive, ref, watch } from 'vue'
 import ResourceQuestion from './ResourceQuestion.vue'
 import { getInsights, getProfitReport, getReportCrops } from '../api.js'
+import { reportCropId } from '../results.js'
 
 const props = defineProps({
   fields: { type: Array, default: () => [] },
   profiles: { type: Array, default: () => [] },
   fieldAnswers: { type: Array, default: () => [] },
 })
-const emit = defineEmits(['go-back'])
+const emit = defineEmits(['go-back', 'recommendations-started', 'recommendations-ready', 'recommendations-error'])
 const saved = ref(false)
 const sending = ref(false)
 const results = ref([])
@@ -23,12 +24,6 @@ const priorityQuestions = [
   { key: 'income', label: 'Income potential' },
   { key: 'low_risk', label: 'Lower risk' },
 ]
-
-// The economics engine models silage corn; CDL/insights call grain corn "maize".
-// This mapping lives only at the /report boundary — insights gets the real ids.
-function reportCropId(id) {
-  return id === 'maize' ? 'corn_silage' : id
-}
 
 function initialCrop(answer) {
   const known = [...(answer?.cropHistory || [])].reverse().find((entry) =>
@@ -80,6 +75,7 @@ async function saveResources() {
   saved.value = false
   requestError.value = ''
   results.value = props.fields.map(() => null)
+  emit('recommendations-started', { fields: props.fields })
   const output = await Promise.all(props.fields.map(async (field, index) => {
     const answer = props.fieldAnswers[index] || {}
     const current = currentCrops.value[index]
@@ -135,58 +131,14 @@ async function saveResources() {
   saved.value = output.some((result) => result.insights || result.report)
   if (!saved.value) {
     requestError.value = output[0]?.insightsError || output[0]?.reportError || 'Could not get crop recommendations.'
+    emit('recommendations-error', requestError.value)
   }
   sending.value = false
-}
-
-function formatMoney(value) {
-  if (value == null) return 'Not available'
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value)
-}
-
-function formatPercent(value) {
-  return value == null ? '—' : `${Math.round(value * 100)}%`
+  emit('recommendations-ready', { fields: props.fields, results: output })
 }
 
 function cropName(id) {
   return reportCrops.value.find((crop) => crop.crop === id)?.label || id
-}
-
-function doyToDate(doy) {
-  if (doy == null) return ''
-  return new Date(Date.UTC(2026, 0, doy)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
-}
-
-const TAG_LABELS = {
-  current: 'Your current crop',
-  best_overall: 'Best overall',
-  safest_dry_year: 'Safest in a dry year',
-  best_for_soil: 'Best for the soil',
-  alternative: 'Also worth a look',
-}
-
-// One row per money option, joined with its agronomy candidate by crop id
-function mergedOptions(result) {
-  const candidates = new Map((result.insights?.candidates || [])
-    .map((candidate) => [reportCropId(candidate.crop_id), candidate]))
-  return (result.report?.options || []).map((option) => ({
-    option,
-    candidate: candidates.get(option.crop) || null,
-  }))
-}
-
-// Agronomy-only candidates the economics table has no numbers for
-function extraCandidates(result) {
-  const inReport = new Set((result.report?.options || []).map((option) => option.crop))
-  return (result.insights?.candidates || [])
-    .filter((candidate) => !inReport.has(reportCropId(candidate.crop_id)))
-    .slice(0, 5)
-}
-
-function dataNotesText(option) {
-  const notes = option.data_notes
-  if (!notes || typeof notes !== 'object') return ''
-  return Object.entries(notes).map(([key, value]) => `${key.replaceAll('_', ' ')}: ${value}`).join(' · ')
 }
 </script>
 
@@ -268,58 +220,6 @@ function dataNotesText(option) {
       </form>
       <p v-if="requestError" class="api-error" role="alert">{{ requestError }}</p>
 
-      <template v-for="(result, index) in results" :key="`results-${index}`">
-        <section v-if="result" class="recommendations-result">
-          <p class="eyebrow">{{ fields[index]?.name || `Field ${index + 1}` }}</p>
-          <h2>Crop options for this field</h2>
-
-          <p v-if="result.report?.region_warning" class="api-error">{{ result.report.region_warning }}</p>
-          <p v-if="result.report?.summary" class="result-summary">{{ result.report.summary }}</p>
-          <p v-if="result.report?.year_odds" class="field-card-help">
-            Next-season outlook: dry {{ formatPercent(result.report.year_odds.dry) }} ·
-            normal {{ formatPercent(result.report.year_odds.normal) }} ·
-            wet {{ formatPercent(result.report.year_odds.wet) }}
-            <span v-if="result.report?.snowpack?.note"> — {{ result.report.snowpack.note }}</span>
-          </p>
-          <div v-if="result.report?.field_water_use?.season_et_in != null" class="field-water-use">
-            <p>🛰️ {{ result.report.field_water_use.note }}</p>
-            <small>{{ result.report.field_water_use.source }}</small>
-          </div>
-
-          <p v-if="result.insightsError" class="api-error">Field analysis unavailable: {{ result.insightsError }}</p>
-          <p v-if="result.reportError" class="api-error">Profit comparison unavailable: {{ result.reportError }}</p>
-          <p v-if="!result.report && !result.reportError" class="field-card-help">Choose a current crop above to see the profit comparison.</p>
-
-          <article v-for="{ option, candidate } in mergedOptions(result)" :key="option.crop" class="recommendation-card">
-            <h4>{{ option.label || cropName(option.crop) }} <small>· {{ TAG_LABELS[option.tag] || option.tag.replaceAll('_', ' ') }}</small></h4>
-            <p>
-              <strong>{{ formatMoney(option.expected_profit_per_acre) }}/acre expected</strong>
-              · {{ formatMoney(option.dry_year_profit_per_acre) }}/acre in a dry year
-              · {{ formatMoney(option.expected_profit_field) }} for this field
-            </p>
-            <p v-if="option.why">{{ option.why }}</p>
-            <p v-if="candidate" class="field-card-help">
-              Growing fit {{ Math.round(candidate.suitability?.overall != null ? candidate.suitability.overall * 100 : candidate.score * 100) }}%
-              <span v-if="candidate.plant_window"> · plant {{ doyToDate(candidate.plant_window.start_doy) }}–{{ doyToDate(candidate.plant_window.end_doy) }}</span>
-              <span v-if="candidate.water?.crop_need_mm != null"> · needs about {{ Math.round(candidate.water.crop_need_mm / 25.4) }} in of water</span>
-              <span v-if="candidate.rotation?.flags?.length"> · {{ candidate.rotation.flags.join('; ') }}</span>
-            </p>
-            <p v-if="option.risks?.length" class="field-card-help">⚠ {{ option.risks[0] }}</p>
-            <small v-if="dataNotesText(option)" class="field-card-help">{{ dataNotesText(option) }}</small>
-          </article>
-
-          <p v-if="extraCandidates(result).length" class="field-card-help">
-            Also fits here agronomically (no local price data yet):
-            {{ extraCandidates(result).map((candidate) => candidate.name).join(', ') }}
-          </p>
-
-          <details v-if="result.report || result.insights">
-            <summary>Data and assumptions</summary>
-            <p v-if="result.report?.disclaimer">{{ result.report.disclaimer }}</p>
-            <p>Data sources: {{ [...(result.report?.data_sources || []), ...(result.insights?.sources || [])].join(', ') }}</p>
-          </details>
-        </section>
-      </template>
     </section>
   </main>
 </template>
