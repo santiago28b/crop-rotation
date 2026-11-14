@@ -1,2 +1,14 @@
 requests
 pandas
+fastapi
+uvicorn
+
+# backend insights (app/insights, app/sources)
+httpx
+numpy
+scipy
+pyyaml
+shapely
+pyproj
+python-dotenv
+pytest

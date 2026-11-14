@@ -23,3 +23,9 @@ data/processed/
 .DS_Store
 .vscode/
 .idea/
+
+# Cached NASA downloads
+data/cache/
+
+# API response cache
+data/cache/

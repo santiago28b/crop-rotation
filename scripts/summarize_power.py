@@ -47,10 +47,9 @@ def yearly_summary(df: pd.DataFrame) -> pd.DataFrame:
     out["frost_free_days"] = out["first_fall_frost_doy"] - out["last_spring_frost_doy"]
 
     # Label each year dry / normal / wet by growing-season rain (lowest third = dry)
-    low, high = out["precip_season_mm"].quantile([1 / 3, 2 / 3])
-    out["year_type"] = out["precip_season_mm"].apply(
-        lambda p: "dry" if p <= low else ("wet" if p >= high else "normal")
-    )
+    # Split by rank so each type gets ~1/3 of the years (no tie problems at the cutoffs)
+    rank = out["precip_season_mm"].rank(method="first")
+    out["year_type"] = pd.qcut(rank, 3, labels=["dry", "normal", "wet"]).astype(str)
     return out
 
 
