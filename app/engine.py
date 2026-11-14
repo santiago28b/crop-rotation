@@ -22,6 +22,8 @@ from pathlib import Path
 
 from app.climate import get_climate
 from app.geo import field_center_and_acres
+from app.snowpack import snowpack_status
+from app.market import HOME_REGION, apply_market, in_home_region, locate, state_market
 
 ROOT = Path(__file__).resolve().parent.parent
 YEAR_TYPES = ["dry", "normal", "wet"]
@@ -88,6 +90,57 @@ def load_climate(lat: float, lon: float) -> dict:
         fallback = dict(DEFAULT_CLIMATE)
         fallback["source"] = f"placeholder climate (NASA POWER unavailable: {type(e).__name__})"
         return fallback
+
+
+def resolve_snowpack(choice: str, lat: float, lon: float) -> dict:
+    """Snowpack level for the year odds: the user's choice, or SNOTEL when "auto"."""
+    if choice != "auto":
+        return {"level": choice, "source": f"Snowpack: set by user ({choice})",
+                "note": "Snowpack chosen by hand."}
+    if not in_home_region(lat, lon):
+        return {"level": "normal", "source": "Snowpack: not used (outside the Boise River area)",
+                "note": "Live snowpack is only wired up for the Boise River basin."}
+    try:
+        status = snowpack_status()
+    except Exception as e:
+        return {"level": "normal", "source": f"Snowpack: SNOTEL unavailable ({type(e).__name__})",
+                "note": "Could not read SNOTEL, so a normal snow year is assumed."}
+    status["source"] = (f"Snowpack: {status['source']}, as of {status['as_of']}, "
+                        f"{status['basin_pct_of_median']}% of median")
+    return status
+
+
+def find_location(lat: float, lon: float) -> dict | None:
+    """State and county of the field, or None if the lookup can't be done."""
+    try:
+        return locate(lat, lon)
+    except Exception:
+        return None
+
+
+def with_local_market(crops: dict, location: dict | None) -> tuple[dict, str]:
+    """Swap in the state's USDA yields and prices. On any problem keep the crop table."""
+    table = "Yields and prices: crop table (data/crops.csv)"
+    if not location:
+        return crops, table + "; field's state could not be looked up"
+    try:
+        market = state_market(location["state"])
+    except Exception as e:
+        return crops, table + f"; USDA NASS not used ({type(e).__name__}: {e})"
+    found = sum(1 for c in market.values() for v in c.values() if v)
+    return (apply_market(crops, market, location["state"]),
+            f"Yields and prices: USDA NASS QuickStats for {location['state']} "
+            f"({found} values found); crop table for the rest")
+
+
+def region_warning(lat: float, lon: float, location: dict | None) -> str | None:
+    """Costs and water numbers are only valid in the home region. Say so elsewhere."""
+    if in_home_region(lat, lon):
+        return None
+    place = f"{location['county']}, {location['state']}" if location else "this location"
+    return (f"This tool is tuned for {HOME_REGION['name']}. For {place}, climate is local, "
+            "but the crop list, costs per acre, crop water needs and irrigation assumptions "
+            "are southwest Idaho numbers. Treat the dollar figures as rough.")
 
 
 # ------------------------------------------------------------------- the math
@@ -194,19 +247,26 @@ def _risks(option: dict, problems: list[str]) -> list[str]:
 
 
 def build_report(field, current_crop: str, water_supply: str = "full",
-                 area_crops: list[dict] | None = None, snowpack: str = "normal",
-                 crops: dict | None = None, climate: dict | None = None) -> dict:
+                 area_crops: list[dict] | None = None, snowpack: str = "auto",
+                 crops: dict | None = None, climate: dict | None = None,
+                 location: dict | None = None) -> dict:
+    use_market = crops is None      # a crop table passed in by hand is used as is
     crops = crops or load_crops()
     if water_supply not in ASSUMPTIONS["supply_level"]:
         raise ValueError("water_supply must be full, limited or short")
-    if snowpack not in SNOWPACK_SHIFT:
-        raise ValueError("snowpack must be low, normal or high")
+    if snowpack != "auto" and snowpack not in SNOWPACK_SHIFT:
+        raise ValueError("snowpack must be auto, low, normal or high")
     if current_crop not in crops:
         raise ValueError(f"unknown current_crop '{current_crop}'. Known: {sorted(crops)}")
 
     lat, lon, acres = field_center_and_acres(field)
     climate = climate or load_climate(lat, lon)
-    odds = year_odds(climate, snowpack)
+    location = location or find_location(lat, lon)
+    market_source = "Yields and prices: crop table (data/crops.csv)"
+    if use_market:
+        crops, market_source = with_local_market(crops, location)
+    snow = resolve_snowpack(snowpack, lat, lon)
+    odds = year_odds(climate, snow["level"])
 
     # Candidates = crops common in the area (from Ethan) that we have numbers for
     area_names = [c["crop"] for c in (area_crops or [])]
@@ -256,6 +316,7 @@ def build_report(field, current_crop: str, water_supply: str = "full",
             "by_year_type": o["by_year_type"],
             "soil_score": o["soil_score"],
             "soil_note": o["soil_note"],
+            "data_notes": crops[name].get("data_notes"),
             "why": _why(o, tag, water_supply),
             "risks": _risks(o, o["problems"]),
         })
@@ -264,7 +325,10 @@ def build_report(field, current_crop: str, water_supply: str = "full",
 
     return {
         "field": {"lat": lat, "lon": lon, "acres": acres},
+        "location": location,
+        "region_warning": region_warning(lat, lon, location),
         "inputs": {"current_crop": current_crop, "water_supply": water_supply, "snowpack": snowpack},
+        "snowpack": snow,
         "year_odds": {t: round(odds[t], 2) for t in YEAR_TYPES},
         "climate": climate,
         "options": options,
@@ -272,6 +336,8 @@ def build_report(field, current_crop: str, water_supply: str = "full",
         "unknown_area_crops": unknown,
         "data_sources": [
             climate["source"],
+            market_source,
+            snow["source"],
             "Crop table: data/crops.csv ("
             + ", ".join(sorted({c["source"] for c in crops.values()})) + ")",
         ],

@@ -27,7 +27,7 @@ class ReportRequest(BaseModel):
     current_crop: str
     water_supply: Literal["full", "limited", "short"] = "full"
     area_crops: list[AreaCrop] | None = None      # common crops in the area (from Ethan's part)
-    snowpack: Literal["low", "normal", "high"] = "normal"
+    snowpack: Literal["auto", "low", "normal", "high"] = "auto"   # auto = live SNOTEL near Boise
 
 
 @app.get("/health")

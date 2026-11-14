@@ -82,6 +82,27 @@ Returns `options` (current crop first, then ranked), each with expected and dry-
 
 **Placeholders to replace:** every number in `data/crops.csv` (marked `source = placeholder`) and the water assumptions at the top of `app/engine.py`.
 
+## Yields and prices by location
+
+The engine looks up the field's state (FCC Census API, no key) and replaces the crop table's yield and price with that state's USDA NASS QuickStats averages (2020 onward) where USDA has them. Each option's `data_notes` says where its yield, price and cost came from.
+
+```
+export NASS_API_KEY=your_key          # free: https://quickstats.nass.usda.gov/api
+python scripts/check_market.py ID     # shows which crops were found, and USDA's item names for any that weren't
+```
+
+Without a key the engine uses `data/crops.csv` as is. Costs per acre, crop water needs and irrigation assumptions are still southwest Idaho only; fields outside that area get a `region_warning` in the report.
+
+## Live snowpack (SNOTEL)
+
+With `"snowpack": "auto"` (the default), fields in the Boise area read today's snow water at 4 Boise River SNOTEL stations (Atlanta Summit, Graham Guard Station, Mores Creek Summit, Trinity Mountain) and compare it with the 30-year median for the same day. Under 80% → low-snow year (dry year more likely), over 120% → high. Early in the season, when there's under 1 inch normally, it reports "too early" and assumes normal. No API key needed.
+
+```
+python -m app.snowpack       # prints the current Boise basin snowpack
+```
+
+The report's `snowpack` field has the level, percent of median, a plain-English note and each station's numbers. You can still force `"low"`, `"normal"` or `"high"`, for example to demo a dry year.
+
 ## NASA-data insights API (fields → crop candidates)
 
 Lives in `app/insights/` (algorithms), `app/sources/` (NASA POWER, SoilGrids, SSURGO, CropScape CDL), `app/routers/`
