@@ -397,6 +397,30 @@ h1 {
   font-weight: 800;
 }
 
+.field-list-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.field-delete-button {
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid #e5c5be;
+  border-radius: 10px;
+  background: #fff;
+  color: #95372b;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.field-delete-button:hover {
+  background: #fff1ee;
+  border-color: #c38377;
+}
+
 .points-count {
   margin: -5px 0 0;
   color: #526257;

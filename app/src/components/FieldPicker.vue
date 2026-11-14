@@ -82,9 +82,15 @@ function clearPoints() {
   drawBoundary()
 }
 
+function nextFieldName() {
+  let number = 1
+  while (fields.value.some((field) => field.name === `Field ${number}`)) number += 1
+  return `Field ${number}`
+}
+
 function confirmField() {
   if (!canConfirm.value) return
-  const name = fieldName.value.trim() || `Field ${fields.value.length + 1}`
+  const name = fieldName.value.trim() || nextFieldName()
   fields.value.push({
     name,
     boundary: points.value.map(({ lat, lng }) => ({ lat, lng })),
@@ -97,9 +103,22 @@ function confirmField() {
 
 function addAnotherField() {
   points.value = []
-  fieldName.value = `Field ${fields.value.length + 1}`
+  fieldName.value = nextFieldName()
   drawing.value = true
   message.value = ''
+  drawBoundary()
+}
+
+function deleteField(index) {
+  const field = fields.value[index]
+  if (!field) return
+
+  fields.value = fields.value.filter((_, fieldIndex) => fieldIndex !== index)
+  if (!drawing.value) {
+    fieldName.value = nextFieldName()
+    drawing.value = fields.value.length === 0
+  }
+  message.value = `${field.name} deleted.`
   drawBoundary()
 }
 
@@ -219,7 +238,15 @@ onBeforeUnmount(() => {
             <p class="field-list-title">Fields added</p>
             <div v-for="(field, index) in fields" :key="index" class="field-list-item">
               <span class="field-list-number">{{ index + 1 }}</span>
-              <span>{{ field.name }}</span>
+              <span class="field-list-name">{{ field.name }}</span>
+              <button
+                class="field-delete-button"
+                type="button"
+                :aria-label="`Delete ${field.name}`"
+                @click="deleteField(index)"
+              >
+                Delete
+              </button>
             </div>
           </div>
 
