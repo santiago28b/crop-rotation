@@ -38,3 +38,13 @@ docs/        notes and write-up
 ## Team
 
 byutv — Girard, OH local event
+
+## Quick start
+
+```
+pip install -r requirements.txt
+python scripts/fetch_power.py                 # downloads 2001-2024 daily NASA POWER data for Nampa, ID
+python scripts/summarize_power.py data/raw/power_nampa_2001_2024.csv
+```
+
+Output: yearly water / heat / frost / soil-moisture facts in `data/processed/`, with each year labeled dry, normal or wet.
