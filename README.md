@@ -78,4 +78,6 @@ uvicorn app.main:app --reload   # API at http://localhost:8000/docs
 
 Returns `options` (current crop first, then ranked), each with expected and dry-year profit per acre and for the field, water needed vs. available per year type, `why` and `risks`.
 
-**Placeholders to replace:** every number in `data/crops.csv` (marked `source = placeholder`) and the water assumptions at the top of `app/engine.py`. If `data/processed/` has no NASA POWER summary, the engine uses placeholder climate numbers and says so in the report.
+**Climate:** fetched from NASA POWER for each field's own location (snapped to NASA's ~0.5° grid) and cached in `data/cache/`. The first request for an area takes a few seconds; after that it's instant. If NASA can't be reached, the engine uses placeholder climate and says so in the report.
+
+**Placeholders to replace:** every number in `data/crops.csv` (marked `source = placeholder`) and the water assumptions at the top of `app/engine.py`.

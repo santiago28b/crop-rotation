@@ -20,6 +20,7 @@ import csv
 import json
 from pathlib import Path
 
+from app.climate import get_climate
 from app.geo import field_center_and_acres
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -75,36 +76,18 @@ def load_crops(path: Path | None = None) -> dict:
     return crops
 
 
-def load_climate(processed_dir: Path | None = None) -> dict:
-    """Read the yearly NASA POWER summary (from summarize_power.py) if it exists."""
-    processed_dir = processed_dir or ROOT / "data" / "processed"
-    files = sorted(processed_dir.glob("power_*_yearly.csv")) if processed_dir.exists() else []
-    if not files:
-        return DEFAULT_CLIMATE
+def load_climate(lat: float, lon: float) -> dict:
+    """NASA POWER climate for the field's location (cached by grid cell).
 
-    with open(files[0], newline="") as f:
-        rows = [r for r in csv.DictReader(f) if r.get("year_type") in YEAR_TYPES]
-    if not rows:
-        return DEFAULT_CLIMATE
-
-    def avg(items, col):
-        vals = [float(r[col]) for r in items if r.get(col) not in ("", None)]
-        return sum(vals) / len(vals) if vals else 0.0
-
-    by_type, odds = {}, {}
-    for t in YEAR_TYPES:
-        group = [r for r in rows if r["year_type"] == t]
-        odds[t] = len(group) / len(rows)
-        by_type[t] = {
-            "season_rain_in": round(avg(group, "precip_season_mm") / MM_PER_IN, 2),
-            "hot_days": round(avg(group, "hot_days"), 1),
-        }
-    return {
-        "source": f"NASA POWER ({files[0].name})",
-        "frost_free_days": round(avg(rows, "frost_free_days")),
-        "odds": odds,
-        "by_year_type": by_type,
-    }
+    If NASA can't be reached, fall back to placeholder numbers and say so in
+    the report's data sources, so the app still works during a demo.
+    """
+    try:
+        return get_climate(lat, lon)
+    except Exception as e:  # network down, API error, bad data
+        fallback = dict(DEFAULT_CLIMATE)
+        fallback["source"] = f"placeholder climate (NASA POWER unavailable: {type(e).__name__})"
+        return fallback
 
 
 # ------------------------------------------------------------------- the math
@@ -214,7 +197,6 @@ def build_report(field, current_crop: str, water_supply: str = "full",
                  area_crops: list[dict] | None = None, snowpack: str = "normal",
                  crops: dict | None = None, climate: dict | None = None) -> dict:
     crops = crops or load_crops()
-    climate = climate or load_climate()
     if water_supply not in ASSUMPTIONS["supply_level"]:
         raise ValueError("water_supply must be full, limited or short")
     if snowpack not in SNOWPACK_SHIFT:
@@ -223,6 +205,7 @@ def build_report(field, current_crop: str, water_supply: str = "full",
         raise ValueError(f"unknown current_crop '{current_crop}'. Known: {sorted(crops)}")
 
     lat, lon, acres = field_center_and_acres(field)
+    climate = climate or load_climate(lat, lon)
     odds = year_odds(climate, snowpack)
 
     # Candidates = crops common in the area (from Ethan) that we have numbers for

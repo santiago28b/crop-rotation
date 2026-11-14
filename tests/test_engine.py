@@ -82,6 +82,47 @@ def test_bad_input():
         raise AssertionError(f"expected ValueError for {kw}")
 
 
+def _fake_daily(lat, lon, start, end):
+    import numpy as np
+    import pandas as pd
+    dates = pd.date_range(f"{start}-01-01", f"{end}-12-31")
+    rng = np.random.default_rng(int(abs(lat * 100)))
+    base = 11 - 14 * np.cos(2 * np.pi * (dates.dayofyear.values - 15) / 365)
+    return pd.DataFrame({"T2M_MAX": base + 8 + rng.normal(0, 3, len(dates)),
+                         "T2M_MIN": base - 8 + rng.normal(0, 3, len(dates)),
+                         "PRECTOTCORR": rng.exponential(0.5, len(dates)),
+                         "GWETROOT": 0.4}, index=dates)
+
+
+def test_climate_uses_field_location_and_caches():
+    import tempfile
+    from unittest.mock import patch
+    from app import climate as cl
+
+    calls = []
+    def fake(lat, lon, s, e):
+        calls.append((lat, lon))
+        return _fake_daily(lat, lon, s, e)
+
+    tmp = Path(tempfile.mkdtemp())
+    with patch.object(cl, "fetch_power", fake):
+        a = cl.get_climate(43.58, -116.56, cache_dir=tmp)   # Nampa
+        b = cl.get_climate(43.61, -116.52, cache_dir=tmp)   # nearby, same grid cell
+        c = cl.get_climate(42.56, -114.46, cache_dir=tmp)   # Twin Falls, different cell
+    assert calls == [(43.5, -116.5), (42.5, -114.5)]       # cached, not re-fetched
+    assert a == b and a["grid_cell"] != c["grid_cell"]
+    assert "43.5, -116.5" in a["source"]
+
+
+def test_report_falls_back_when_nasa_unreachable():
+    from unittest.mock import patch
+    from app import engine
+    with patch.object(engine, "get_climate", side_effect=ConnectionError("offline")):
+        r = build_report(FIELD, "corn_silage", "full", crops=CROPS)
+    assert "placeholder climate" in r["climate"]["source"]
+    assert len(r["options"]) >= 3
+
+
 if __name__ == "__main__":
     tests = [v for k, v in dict(globals()).items() if k.startswith("test_")]
     for t in tests:
