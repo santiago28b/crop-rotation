@@ -89,6 +89,15 @@ def test_single_area_crop_still_gives_three_options():
         assert by_tag["safest_dry_year"]["dry_year_profit_per_acre"] == best_dry
 
 
+def test_top5_and_summary():
+    r = report()                                      # full table, 9 candidates
+    assert len(r["options"]) == 5
+    assert r["options"][0]["tag"] == "current"
+    best = max(r["options"], key=lambda o: o["score"])
+    assert best["label"].lower() in r["summary"].lower()
+    assert "/acre" in r["summary"]
+
+
 def test_bad_input():
     for kw in ({"current_crop": "bananas"}, {"water_supply": "lots"}):
         try:
