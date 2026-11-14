@@ -12,11 +12,12 @@ FIELD = {"type": "Polygon", "coordinates": [[
     [-116.5650, 43.5800], [-116.5590, 43.5800], [-116.5590, 43.5850],
     [-116.5650, 43.5850], [-116.5650, 43.5800]]]}
 CROPS = load_crops()
+IDAHO = {"state": "ID", "state_name": "Idaho", "county": "Canyon", "county_fips": "16027"}
 
 
 def report(**kw):
     args = dict(field=FIELD, current_crop="corn_silage", water_supply="full",
-                crops=CROPS, climate=DEFAULT_CLIMATE)
+                crops=CROPS, climate=DEFAULT_CLIMATE, location=IDAHO)
     args.update(kw)
     return build_report(**args)
 
@@ -118,8 +119,58 @@ def test_report_falls_back_when_nasa_unreachable():
     from unittest.mock import patch
     from app import engine
     with patch.object(engine, "get_climate", side_effect=ConnectionError("offline")):
-        r = build_report(FIELD, "corn_silage", "full", crops=CROPS)
+        r = build_report(FIELD, "corn_silage", "full", crops=CROPS, location=IDAHO)
     assert "placeholder climate" in r["climate"]["source"]
+    assert len(r["options"]) >= 3
+
+
+def _nass_row(item, year, value, period="YEAR"):
+    return {"short_desc": item, "year": str(year), "Value": value,
+            "reference_period_desc": period, "domain_desc": "TOTAL"}
+
+
+def test_market_overrides_yield_and_price():
+    import tempfile
+    from unittest.mock import patch
+    from app import engine, market
+
+    def fake_query(commodity, stat, state, key):
+        assert state == "KS"
+        if commodity == "WHEAT" and stat == "yield":
+            return [_nass_row("WHEAT, WINTER - YIELD, MEASURED IN BU / ACRE", 2022, "40"),
+                    _nass_row("WHEAT, WINTER - YIELD, MEASURED IN BU / ACRE", 2023, "50"),
+                    _nass_row("WHEAT, WINTER - YIELD, MEASURED IN BU / ACRE", 2024, "(D)"),
+                    _nass_row("WHEAT, WINTER, IRRIGATED - YIELD, MEASURED IN BU / ACRE", 2023, "99")]
+        if commodity == "BEANS" and stat == "yield":
+            return [_nass_row("BEANS, DRY EDIBLE - YIELD, MEASURED IN LB / ACRE", 2023, "2,400")]
+        return []
+
+    tmp = Path(tempfile.mkdtemp())
+    with patch.object(market, "query_nass", fake_query):
+        m = market.state_market("KS", api_key="x", cache_dir=tmp)
+    assert m["winter_wheat"]["yield"]["value"] == 45 and m["winter_wheat"]["yield"]["years"] == "2022-2023"
+    assert m["dry_beans"]["yield"]["value"] == 24          # lb -> cwt
+    assert m["winter_wheat"]["price"] is None and m["corn_silage"]["price"] is None
+
+    kansas = {"state": "KS", "state_name": "Kansas", "county": "Reno", "county_fips": "20155"}
+    field = {"type": "Polygon", "coordinates": [[[-98.0, 38.0], [-97.99, 38.0], [-97.99, 38.01], [-98.0, 38.01]]]}
+    with patch.object(engine, "state_market", lambda state: m):
+        r = build_report(field, "winter_wheat", "full", climate=DEFAULT_CLIMATE, location=kansas)
+    wheat = r["options"][0]
+    assert wheat["data_notes"]["yield"] == "USDA NASS KS average 2022-2023"
+    assert wheat["data_notes"]["price"].startswith("crop table")
+    assert wheat["by_year_type"]["wet"]["yield_per_acre"] <= 45
+    assert r["region_warning"] and "Reno, KS" in r["region_warning"]
+    assert any("USDA NASS QuickStats for KS" in s for s in r["data_sources"])
+
+
+def test_no_key_keeps_crop_table_and_home_region_has_no_warning():
+    import os
+    from unittest.mock import patch
+    with patch.dict(os.environ, {}, clear=True):
+        r = build_report(FIELD, "corn_silage", "full", climate=DEFAULT_CLIMATE, location=IDAHO)
+    assert r["region_warning"] is None
+    assert any("NASS_API_KEY is not set" in s for s in r["data_sources"])
     assert len(r["options"]) >= 3
 
 

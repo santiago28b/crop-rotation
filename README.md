@@ -81,3 +81,14 @@ Returns `options` (current crop first, then ranked), each with expected and dry-
 **Climate:** fetched from NASA POWER for each field's own location (snapped to NASA's ~0.5° grid) and cached in `data/cache/`. The first request for an area takes a few seconds; after that it's instant. If NASA can't be reached, the engine uses placeholder climate and says so in the report.
 
 **Placeholders to replace:** every number in `data/crops.csv` (marked `source = placeholder`) and the water assumptions at the top of `app/engine.py`.
+
+## Yields and prices by location
+
+The engine looks up the field's state (FCC Census API, no key) and replaces the crop table's yield and price with that state's USDA NASS QuickStats averages (2020 onward) where USDA has them. Each option's `data_notes` says where its yield, price and cost came from.
+
+```
+export NASS_API_KEY=your_key          # free: https://quickstats.nass.usda.gov/api
+python scripts/check_market.py ID     # shows which crops were found, and USDA's item names for any that weren't
+```
+
+Without a key the engine uses `data/crops.csv` as is. Costs per acre, crop water needs and irrigation assumptions are still southwest Idaho only; fields outside that area get a `region_warning` in the report.
