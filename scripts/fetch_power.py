@@ -7,7 +7,7 @@ Docs: https://power.larc.nasa.gov/docs/services/api/temporal/daily/
 Usage:
     python scripts/fetch_power.py                       # default: Nampa, ID (Treasure Valley farmland)
     python scripts/fetch_power.py --lat 43.6 --lon -116.2 --name boise
-    python scripts/fetch_power.py --start 2001 --end 2024
+    python scripts/fetch_power.py --start 2001 --end 2025
 """
 
 import argparse
@@ -64,7 +64,7 @@ def main():
     parser.add_argument("--lon", type=float, default=-116.56)
     parser.add_argument("--name", default="nampa")
     parser.add_argument("--start", type=int, default=2001)
-    parser.add_argument("--end", type=int, default=2024)
+    parser.add_argument("--end", type=int, default=2025)
     args = parser.parse_args()
 
     df = fetch_power(args.lat, args.lon, args.start, args.end)

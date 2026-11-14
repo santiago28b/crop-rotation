@@ -3,7 +3,7 @@ Turn daily NASA POWER data into simple farm facts per year:
 water, heat, frost, and soil moisture. This is what the rotation scoring will use.
 
 Usage:
-    python scripts/summarize_power.py data/raw/power_nampa_2001_2024.csv
+    python scripts/summarize_power.py data/raw/power_nampa_2001_2025.csv
 """
 
 import argparse
