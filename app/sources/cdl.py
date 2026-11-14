@@ -32,12 +32,12 @@ _RESULT_RE = re.compile(r"value:\s*(\d+),\s*category:\s*\"([^\"]*)\"")
 # CDL category name -> crops.yaml id (None = known land cover we don't model)
 CDL_TO_CROP = {
     "Corn": "maize", "Sweet Corn": "maize", "Pop or Orn Corn": "maize",
-    "Winter Wheat": "wheat_winter", "Spring Wheat": "wheat_spring", "Durum Wheat": "wheat_spring",
-    "Barley": "barley", "Sorghum": "sorghum", "Millet": "pearl_millet", "Rice": "rice_paddy",
-    "Soybeans": "soybean", "Dry Beans": "dry_bean", "Chick Peas": "chickpea", "Lentils": "lentil",
-    "Peanuts": "groundnut", "Potatoes": "potato", "Sweet Potatoes": "sweet_potato",
+    "Winter Wheat": "winter_wheat", "Spring Wheat": "wheat_spring", "Durum Wheat": "wheat_spring",
+    "Barley": "spring_barley", "Sorghum": "sorghum", "Millet": "pearl_millet", "Rice": "rice_paddy",
+    "Soybeans": "soybean", "Dry Beans": "dry_beans", "Chick Peas": "chickpea", "Lentils": "lentil",
+    "Peanuts": "groundnut", "Potatoes": "potatoes", "Sweet Potatoes": "sweet_potato",
     "Sunflower": "sunflower", "Canola": "canola", "Rape Seed": "canola", "Cotton": "cotton",
-    "Sugarcane": "sugarcane", "Sugarbeets": "sugar_beet", "Alfalfa": "alfalfa", "Onions": "onion",
+    "Sugarcane": "sugarcane", "Sugarbeets": "sugar_beets", "Alfalfa": "alfalfa", "Onions": "onions", "Mint": "mint",
     "Rye": "rye_cover", "Mustard": "mustard_cover", "Vetch": "vetch_cover", "Radishes": "radish_cover",
     "Fallow/Idle Cropland": "fallow", "Grassland/Pasture": "pasture", "Other Hay/Non Alfalfa": "hay",
 }

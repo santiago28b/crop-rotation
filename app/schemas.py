@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 # ---------- shared ----------
@@ -119,8 +119,14 @@ class FieldProfile(BaseModel):
     gaps: list[str]
 
 
+# `field` is accepted as an alias of `geometry` so the UI can send the same body shape to /report and /fields/*.
+_GEOMETRY = Field(..., validation_alias=AliasChoices("geometry", "field"),
+                  description="field polygon as GeoJSON; the key may be `geometry` or `field` (same as POST /report)")
+
+
 class FieldProfileRequest(BaseModel):
-    geometry: GeoJSONGeometry
+    model_config = ConfigDict(populate_by_name=True)
+    geometry: GeoJSONGeometry = _GEOMETRY
     name: str | None = None
 
 
@@ -147,7 +153,8 @@ class Priorities(BaseModel):
 
 
 class FieldInsightsRequest(BaseModel):
-    geometry: GeoJSONGeometry
+    model_config = ConfigDict(populate_by_name=True)
+    geometry: GeoJSONGeometry = _GEOMETRY
     name: str | None = None
     history: list[CropYear] = Field([], description="farmer-confirmed crop history, oldest first")
     resources: Resources = Resources()

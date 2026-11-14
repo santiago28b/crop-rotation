@@ -89,6 +89,20 @@ def test_rotation_rules():
     rot2, credit2 = rotation.evaluate(hist + [CropYear(year=2026, crop_id="chickpea", crop_label="Chickpea", source="farmer")],
                                       crops["wheat_spring"], crops, 2027)
     assert rot2.yield_modifier > 1.0 and credit2 == 30
-    rot3, _ = rotation.evaluate([CropYear(year=2025, crop_id="potato", crop_label="Potatoes", source="cdl")],
-                                crops["potato"], crops, 2026)
+    rot3, _ = rotation.evaluate([CropYear(year=2025, crop_id="potatoes", crop_label="Potatoes", source="cdl")],
+                                crops["potatoes"], crops, 2026)
     assert not rot3.return_interval_ok
+
+
+def test_shared_crop_ids_match_report_engine():
+    """Every crop the /report engine knows (data/crops.csv) has an agronomic entry with the same id."""
+    from app.engine import load_crops as load_report_crops
+    assert set(load_report_crops()) <= set(load_crops())
+
+
+def test_field_key_is_an_alias_of_geometry():
+    from app.schemas import FieldInsightsRequest, FieldProfileRequest
+    poly = {"type": "Polygon", "coordinates": [[[-116.565, 43.58], [-116.559, 43.58], [-116.559, 43.585], [-116.565, 43.58]]]}
+    assert FieldProfileRequest(field=poly).geometry.type == "Polygon"
+    assert FieldProfileRequest(geometry=poly).geometry.type == "Polygon"
+    assert FieldInsightsRequest.model_validate({"field": poly}).geometry.coordinates == poly["coordinates"]
