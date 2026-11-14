@@ -24,6 +24,7 @@ from app.climate import get_climate
 from app.geo import field_center_and_acres
 from app.snowpack import snowpack_status
 from app.market import HOME_REGION, apply_market, in_home_region, locate, state_market
+from app.openet import field_water_use_in
 
 ROOT = Path(__file__).resolve().parent.parent
 YEAR_TYPES = ["dry", "normal", "wet"]
@@ -108,6 +109,46 @@ def resolve_snowpack(choice: str, lat: float, lon: float) -> dict:
     status["source"] = (f"Snowpack: {status['source']}, as of {status['as_of']}, "
                         f"{status['basin_pct_of_median']}% of median")
     return status
+
+
+def resolve_field_water(lat: float, lon: float) -> dict:
+    """Measured water use of this field from OpenET, or a note saying why not."""
+    try:
+        return field_water_use_in(lat, lon)
+    except Exception as e:
+        return {"season_et_in": None,
+                "source": f"OpenET: not used ({type(e).__name__}: {e})",
+                "note": "No measured field water use; crop table water needs used."}
+
+
+def apply_field_water(crops: dict, current_crop: str, field_water: dict) -> dict:
+    """Use the field's measured water use as the CURRENT crop's water need.
+
+    Only the current crop: OpenET measured what actually grew on this field, so
+    it says nothing about crops the field didn't grow. If the measurement is
+    under half the table's need, the field probably wasn't growing this crop
+    (bare ground measures like desert) — keep the table value and say so.
+    """
+    measured = field_water["season_et_in"]
+    table_need = crops[current_crop]["water_need_in"]
+    if measured < 0.5 * table_need:
+        field_water["applied_to_current_crop"] = False
+        field_water["note"] = (
+            f"OpenET measured only {measured} in/season on this field, under half of what "
+            f"{crops[current_crop]['label'].lower()} typically needs ({table_need} in) — the field "
+            "probably wasn't growing it (or wasn't fully irrigated). Crop table value kept.")
+        return crops
+    row = dict(crops[current_crop])
+    row["water_need_in"] = measured
+    notes = dict(row.get("data_notes") or {})
+    notes["water_need"] = f"OpenET measured on this field, Apr-Oct mean {field_water['years']}"
+    row["data_notes"] = notes
+    field_water["applied_to_current_crop"] = True
+    field_water["note"] = (
+        f"This field actually used about {measured} in of water per season "
+        f"({field_water['years']}). Used as the water need for {row['label'].lower()}; "
+        "other crops use table values.")
+    return {**crops, current_crop: row}
 
 
 def find_location(lat: float, lon: float) -> dict | None:
@@ -263,8 +304,12 @@ def build_report(field, current_crop: str, water_supply: str = "full",
     climate = climate or load_climate(lat, lon)
     location = location or find_location(lat, lon)
     market_source = "Yields and prices: crop table (data/crops.csv)"
-    if use_market:
+    field_water = None
+    if use_market:      # production path (a hand-passed crop table is used as is)
         crops, market_source = with_local_market(crops, location)
+        field_water = resolve_field_water(lat, lon)
+        if field_water["season_et_in"] is not None:
+            crops = apply_field_water(crops, current_crop, field_water)
     snow = resolve_snowpack(snowpack, lat, lon)
     odds = year_odds(climate, snow["level"])
 
@@ -347,6 +392,7 @@ def build_report(field, current_crop: str, water_supply: str = "full",
         "region_warning": region_warning(lat, lon, location),
         "inputs": {"current_crop": current_crop, "water_supply": water_supply, "snowpack": snowpack},
         "snowpack": snow,
+        "field_water_use": field_water,
         "year_odds": {t: round(odds[t], 2) for t in YEAR_TYPES},
         "climate": climate,
         "options": options,
@@ -356,6 +402,7 @@ def build_report(field, current_crop: str, water_supply: str = "full",
             climate["source"],
             market_source,
             snow["source"],
+            *([field_water["source"]] if field_water else []),
             "Crop table: data/crops.csv ("
             + ", ".join(sorted({c["source"] for c in crops.values()})) + ")",
         ],

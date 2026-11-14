@@ -1,7 +1,9 @@
 """Run with:  python -m pytest   (or)   python tests/test_engine.py"""
 
+import os
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -184,6 +186,52 @@ def test_no_key_keeps_crop_table_and_home_region_has_no_warning():
         r = build_report(FIELD, "corn_silage", "full", climate=DEFAULT_CLIMATE, location=IDAHO)
     assert r["region_warning"] is None
     assert any("NASS_API_KEY is not set" in s for s in r["data_sources"])
+    assert len(r["options"]) >= 3
+
+
+def test_openet_field_water_use_math():
+    from datetime import date
+    from app.openet import field_water_use_in
+    # 100 mm in every month of 2023-2025 -> Apr-Oct = 700 mm = 27.6 in each year
+    def fake(lat, lon, start, end, key):
+        return {f"{y}-{m:02d}-01": 100.0 for y in (2023, 2024, 2025) for m in range(1, 13)}
+    import tempfile
+    with patch.dict(os.environ, {"OPENET_API_KEY": "x"}):
+        r = field_water_use_in(43.58, -116.56, date(2026, 11, 14), fake, Path(tempfile.mkdtemp()))
+    assert r["season_et_in"] == 27.6
+    assert r["years"] == "2023-2025"
+    assert r["by_year_in"][2024] == 27.6
+
+
+def test_openet_overrides_current_crop_water_need():
+    from app.engine import apply_field_water
+    fw = {"season_et_in": 24.0, "years": "2023-2025"}
+    crops = apply_field_water({k: dict(v) for k, v in CROPS.items()}, "corn_silage", fw)
+    assert crops["corn_silage"]["water_need_in"] == 24.0
+    assert fw["applied_to_current_crop"] is True
+    assert "water_need" in crops["corn_silage"]["data_notes"]
+    # other crops untouched
+    assert crops["alfalfa"]["water_need_in"] == CROPS["alfalfa"]["water_need_in"]
+
+
+def test_openet_desert_measurement_not_applied():
+    from app.engine import apply_field_water
+    fw = {"season_et_in": 8.0, "years": "2023-2025"}   # sagebrush, not corn
+    before = CROPS["corn_silage"]["water_need_in"]
+    crops = apply_field_water({k: dict(v) for k, v in CROPS.items()}, "corn_silage", fw)
+    assert crops["corn_silage"]["water_need_in"] == before
+    assert fw["applied_to_current_crop"] is False
+    assert "wasn't growing it" in fw["note"]
+
+
+def test_openet_failure_keeps_report_working():
+    from app import engine
+    with patch.object(engine, "field_water_use_in", side_effect=ConnectionError("down")), \
+         patch.dict(os.environ, {}, clear=True):
+        r = build_report(FIELD, "corn_silage", "full", climate=DEFAULT_CLIMATE,
+                         location=IDAHO, snowpack="normal")
+    assert r["field_water_use"]["season_et_in"] is None
+    assert "not used" in r["field_water_use"]["source"]
     assert len(r["options"]) >= 3
 
 
