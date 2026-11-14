@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+
+# Data (too big for git)
+data/raw/
+data/processed/
+*.h5
+*.hdf
+*.nc
+*.tif
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/

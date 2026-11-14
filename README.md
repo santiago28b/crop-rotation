@@ -1,2 +1,38 @@
 # crop-rotation
-NASA Space Apps 2026 - Field Shift: crop rotation deision tool for Idaho farms using NASA data
+
+NASA Space Apps Challenge 2026 — **Field Shift: Adapting Farms with NASA Data**
+
+A decision-support tool that helps farmers in Idaho's Magic Valley (Twin Falls area) compare crop rotations using NASA Earth data. Main focus: saving water and protecting soil health.
+
+## Idea
+
+1. Pick a field location.
+2. Pick the current rotation (for example potatoes → wheat → sugar beets).
+3. The app pulls NASA climate and soil data for that spot.
+4. It compares 3 rotations (current + 2 others) and explains why, the benefits, and the risks.
+
+This tool supports farmers — it does not replace their judgment or local experts.
+
+## Data sources
+
+| Source | What we use it for |
+|---|---|
+| NASA POWER | Temperature, rain, frost, heat stress |
+| OpenET | Crop water use (evapotranspiration) |
+| SMAP (via AppEEARS) | Soil moisture trends |
+| USDA SSURGO | Soil type |
+| CropScape (USDA CDL) | Past crops planted on a field |
+| MODIS NDVI (via AppEEARS) | Plant health over time |
+
+## Project structure
+
+```
+data/        raw and processed data (not committed)
+scripts/     data download / processing scripts
+app/         the web app
+docs/        notes and write-up
+```
+
+## Team
+
+byutv — Girard, OH local event
