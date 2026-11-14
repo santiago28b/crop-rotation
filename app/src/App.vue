@@ -10,6 +10,7 @@ const fieldStarted = ref(false)
 const fieldInfoStarted = ref(false)
 const resourcesStarted = ref(false)
 const fieldBoundaries = ref([])
+const confirmedFieldData = ref({ profiles: [], answers: [] })
 
 function openFieldPicker() {
   fieldStarted.value = true
@@ -22,7 +23,8 @@ function openFieldInfo(fields) {
   currentPage.value = 'field-info'
 }
 
-function openResources() {
+function openResources(data) {
+  confirmedFieldData.value = data
   resourcesStarted.value = true
   currentPage.value = 'resources'
 }
@@ -47,6 +49,9 @@ function openResources() {
   <ResourcesPage
     v-if="resourcesStarted"
     v-show="currentPage === 'resources'"
+    :fields="fieldBoundaries"
+    :profiles="confirmedFieldData.profiles"
+    :field-answers="confirmedFieldData.answers"
     @go-back="currentPage = 'field-info'"
   />
 </template>

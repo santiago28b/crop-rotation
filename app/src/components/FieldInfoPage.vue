@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import ResourceQuestion from './ResourceQuestion.vue'
+import { getCatalog, getFieldProfile } from '../api.js'
 
 const props = defineProps({
   fields: { type: Array, required: true },
@@ -8,33 +9,58 @@ const props = defineProps({
 const emit = defineEmits(['go-back', 'continue'])
 
 const years = [2021, 2022, 2023, 2024, 2025]
-const cropOptions = ['Maize / corn', 'Beans', 'Wheat', 'Rice', 'Cassava', 'Fallow', 'Unknown', 'Other']
-const sampleCropHistories = [
-  ['Maize / corn', 'Beans', 'Maize / corn', 'Wheat', 'Fallow'],
-  ['Wheat', 'Maize / corn', 'Beans', 'Maize / corn', 'Wheat'],
-  ['Rice', 'Rice', 'Maize / corn', 'Beans', 'Maize / corn'],
-]
+const cropOptions = ref([])
+const profiles = ref([])
+const profileLoading = ref(false)
+const profileError = ref('')
 
 const currentIndex = ref(0)
 const fieldAnswers = ref([])
 
-watch(() => props.fields, (fields) => {
+function normalizeCropId(id) {
+  return id === 'maize' ? 'corn_silage' : id
+}
+
+watch(() => props.fields, async (fields) => {
   currentIndex.value = 0
-  fieldAnswers.value = fields.map((_, fieldIndex) => ({
+  profileLoading.value = true
+  profileError.value = ''
+  fieldAnswers.value = fields.map(() => ({
     waterSources: [],
     waterSourcesOther: '',
     irrigationMethods: [],
     irrigationOther: '',
-    cropHistory: years.map((year, yearIndex) => ({
-      year,
-      crop: sampleCropHistories[fieldIndex % sampleCropHistories.length][yearIndex],
-      other: '',
-    })),
+    cropHistory: years.map((year) => ({ year, crop_id: null, crop_label: 'Unknown', confidence: null, source: 'unknown' })),
   }))
+  try {
+    const [catalog, fieldProfiles] = await Promise.all([
+      getCatalog(),
+      Promise.all(fields.map((field) => getFieldProfile(field))),
+    ])
+    cropOptions.value = catalog
+    profiles.value = fieldProfiles
+    fieldAnswers.value = fields.map((_, index) => {
+      const automatic = new Map((fieldProfiles[index].crop_history?.years || []).map((entry) => [entry.year, entry]))
+      return {
+        ...fieldAnswers.value[index],
+        cropHistory: years.map((year) => {
+          const found = automatic.get(year)
+            return found
+              ? { ...found, crop_id: normalizeCropId(found.crop_id) || null }
+            : { year, crop_id: null, crop_label: 'Unknown', confidence: null, source: 'unknown' }
+        }),
+      }
+    })
+  } catch (error) {
+    profileError.value = error.message || 'Could not load field information.'
+  } finally {
+    profileLoading.value = false
+  }
 }, { immediate: true })
 
 const currentAnswers = computed(() => fieldAnswers.value[currentIndex.value])
 const currentField = computed(() => props.fields[currentIndex.value] ?? {})
+const currentProfile = computed(() => profiles.value[currentIndex.value])
 const fieldNumber = computed(() => currentIndex.value + 1)
 const acres = computed(() => {
   const boundary = currentField.value.boundary ?? []
@@ -66,6 +92,30 @@ function showNextField() {
 
 function showPreviousField() {
   if (currentIndex.value > 0) currentIndex.value -= 1
+}
+
+function updateCropEntry(entry) {
+  const crop = cropOptions.value.find((option) => option.id === normalizeCropId(entry.crop_id))
+  entry.crop_id = normalizeCropId(entry.crop_id)
+  entry.crop_label = crop?.name || 'Unknown'
+  entry.source = 'farmer'
+  entry.confidence = null
+}
+
+function continueWithConfirmedHistory() {
+  emit('continue', {
+    profiles: profiles.value,
+    answers: fieldAnswers.value.map((answer) => ({
+      ...answer,
+      cropHistory: answer.cropHistory.map((entry) => ({
+        year: entry.year,
+        crop_id: entry.crop_id || null,
+        crop_label: entry.crop_label,
+        confidence: entry.source === 'farmer' ? null : entry.confidence,
+        source: entry.source === 'unknown' ? 'unknown' : entry.source,
+      })),
+    })),
+  })
 }
 </script>
 
@@ -105,6 +155,20 @@ function showPreviousField() {
           <p class="area-value"><strong>{{ formattedAcres }}</strong><span>acres</span></p>
         </section>
 
+        <section v-if="currentProfile" class="field-info-card" aria-labelledby="profile-title">
+          <h2 id="profile-title">What we found</h2>
+          <p v-if="currentProfile.soil?.name || currentProfile.soil?.texture_class">
+            Soil: {{ currentProfile.soil.name || currentProfile.soil.texture_class }}
+            <span v-if="currentProfile.soil.ph != null"> · pH {{ currentProfile.soil.ph }}</span>
+          </p>
+          <p v-if="currentProfile.climate">
+            Recent climate ({{ currentProfile.climate.recent.years }}):
+            {{ Math.round(currentProfile.climate.recent.precip_season_mm) }} mm growing-season rain
+          </p>
+          <p class="field-card-help">Data sources: {{ currentProfile.sources.join(', ') }}</p>
+          <p v-for="gap in currentProfile.gaps" :key="gap" class="field-card-help">{{ gap }}</p>
+        </section>
+
         <section class="field-info-card" aria-labelledby="water-title">
           <h2 id="water-title"><span class="section-icon" aria-hidden="true">💧</span>Water for this field</h2>
           <p class="field-card-help">Choose what is available at this field.</p>
@@ -130,24 +194,23 @@ function showPreviousField() {
           <div class="history-heading">
             <div>
               <h2 id="history-title"><span class="section-icon" aria-hidden="true">🌱</span>Crop history</h2>
-              <p class="field-card-help">Sample data for now. NASA autofill will be connected later. Edit any year.</p>
+              <p class="field-card-help">Space-based estimates are shown when available. Please check and correct each year.</p>
             </div>
-            <span class="sample-badge">Demo data</span>
+            <span class="sample-badge">{{ currentProfile?.crop_history?.source || 'Field history' }}</span>
           </div>
+          <p v-if="profileLoading" class="field-card-help" role="status">Loading field data and crop history. This can take up to a minute.</p>
+          <p v-else-if="profileError" class="field-card-help" role="alert">{{ profileError }} You can still enter crop history manually.</p>
+          <p v-else-if="currentProfile?.crop_history?.note" class="field-card-help">{{ currentProfile.crop_history.note }}</p>
           <div class="crop-history-list">
             <label v-for="(entry, index) in currentAnswers.cropHistory" :key="entry.year" class="crop-year">
               <span>{{ entry.year }}</span>
-              <select :id="`field-${fieldNumber}-crop-${entry.year}`" v-model="currentAnswers.cropHistory[index].crop">
-                <option v-for="crop in cropOptions" :key="crop" :value="crop">{{ crop }}</option>
+              <select :id="`field-${fieldNumber}-crop-${entry.year}`" v-model="entry.crop_id" @change="updateCropEntry(entry)">
+                <option value="">Unknown / not sure</option>
+                <option v-for="crop in cropOptions" :key="crop.id" :value="crop.id">{{ crop.name }}</option>
               </select>
-              <input
-                v-if="currentAnswers.cropHistory[index].crop === 'Other'"
-                v-model="currentAnswers.cropHistory[index].other"
-                class="other-crop-input"
-                type="text"
-                :aria-label="`Other crop for ${entry.year}`"
-                placeholder="Name the crop"
-              />
+              <small class="history-source-label">
+                {{ entry.source === 'farmer' ? 'Your correction' : entry.source === 'cdl' && entry.confidence != null ? `Estimate · ${Math.round(entry.confidence * 100)}% agreement` : 'No estimate available' }}
+              </small>
             </label>
           </div>
         </section>
@@ -166,7 +229,7 @@ function showPreviousField() {
         >
           Next field <span aria-hidden="true">→</span>
         </button>
-        <button v-else class="primary-button" type="button" @click="emit('continue')">
+        <button v-else class="primary-button" type="button" :disabled="profileLoading" @click="continueWithConfirmedHistory">
           Continue to resources <span aria-hidden="true">→</span>
         </button>
       </div>

@@ -1,9 +1,42 @@
 <script setup>
 import { reactive, ref, watch } from 'vue'
 import ResourceQuestion from './ResourceQuestion.vue'
+import { getInsights, getProfitReport, getReportCrops } from '../api.js'
 
+const props = defineProps({
+  fields: { type: Array, default: () => [] },
+  profiles: { type: Array, default: () => [] },
+  fieldAnswers: { type: Array, default: () => [] },
+})
 const emit = defineEmits(['go-back'])
 const saved = ref(false)
+const sending = ref(false)
+const results = ref([])
+const requestError = ref('')
+const reportCrops = ref([])
+const currentCrops = ref([])
+const waterSupplies = ref([])
+
+function reportCropId(id) {
+  return id === 'maize' ? 'corn_silage' : id
+}
+
+function initialCrop(answer) {
+  const known = [...(answer?.cropHistory || [])].reverse().find((entry) =>
+    reportCrops.value.some((crop) => crop.crop === reportCropId(entry.crop_id)))
+  return reportCropId(known?.crop_id) || ''
+}
+
+watch(() => props.fields, async (fields) => {
+  try {
+    reportCrops.value = await getReportCrops()
+  } catch (error) {
+    requestError.value = `Could not load the profit comparison crop list: ${error.message}`
+  }
+  currentCrops.value = fields.map((_, index) => initialCrop(props.fieldAnswers[index]))
+  waterSupplies.value = fields.map(() => 'limited')
+  results.value = fields.map(() => null)
+}, { immediate: true })
 
 const sections = [
   {
@@ -111,8 +144,69 @@ watch([answers, otherDetails], () => {
   saved.value = false
 })
 
-function saveResources() {
-  saved.value = true
+function buildInsightsResources(fieldAnswers) {
+  const methods = (fieldAnswers?.irrigationMethods || []).map((value) => value.toLowerCase())
+  const irrigationType = methods.some((value) => value.includes('drip')) ? 'drip'
+    : methods.some((value) => value.includes('sprinkler')) ? 'sprinkler'
+      : methods.some((value) => value.includes('flood')) ? 'surface' : 'none'
+  const equipment = answers.equipment || []
+  const labor = answers.availableWorkers === '1' || answers.availableWorkers === '2–5' ? 'low'
+    : answers.availableWorkers === '6–10' ? 'medium'
+      : answers.availableWorkers ? 'high' : null
+  return {
+    irrigation: { type: irrigationType, seasonal_allotment_mm: null },
+    harvesters: equipment.some((item) => /harvest/i.test(item)) ? ['manual'] : [],
+    planters: equipment.some((item) => /seeder|planter/i.test(item)) ? ['manual'] : [],
+    labor,
+  }
+}
+
+async function saveResources() {
+  sending.value = true
+  saved.value = false
+  requestError.value = ''
+  results.value = props.fields.map(() => null)
+  try {
+    const output = await Promise.all(props.fields.map(async (field, index) => {
+      const answer = props.fieldAnswers[index] || {}
+      const history = (answer.cropHistory || []).map((entry) => ({
+        year: entry.year,
+        crop_id: entry.crop_id || null,
+        crop_label: entry.crop_label || 'Unknown',
+        confidence: entry.source === 'farmer' ? null : entry.confidence,
+        source: entry.source || 'unknown',
+      }))
+      const reportHistory = [...new Set(history.map((entry) => reportCropId(entry.crop_id)))]
+        .filter((id) => reportCrops.value.some((crop) => crop.crop === id))
+        .map((crop) => ({ crop }))
+      const [insights, report] = await Promise.all([
+        getInsights(field, history, buildInsightsResources(answer)),
+        currentCrops.value[index]
+          ? getProfitReport(field, currentCrops.value[index], waterSupplies.value[index], reportHistory)
+          : Promise.resolve(null),
+      ])
+      return { insights, report }
+    }))
+    results.value = output
+    saved.value = true
+  } catch (error) {
+    requestError.value = error.message || 'Could not get crop recommendations.'
+  } finally {
+    sending.value = false
+  }
+}
+
+function formatMoney(value) {
+  if (value == null) return 'Not available'
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value)
+}
+
+function formatPercent(value) {
+  return value == null ? '—' : `${Math.round(value * 100)}%`
+}
+
+function cropName(id) {
+  return reportCrops.value.find((crop) => crop.crop === id)?.label || id
 }
 </script>
 
@@ -143,6 +237,20 @@ function saveResources() {
       </div>
 
       <form class="resources-form" @submit.prevent="saveResources">
+        <section v-for="(field, index) in fields" :key="`comparison-${index}`" class="resource-section comparison-inputs">
+          <h2>Profit comparison for {{ field.name || `Field ${index + 1}` }}</h2>
+          <label class="resource-question-label" :for="`current-crop-${index}`">What crop is growing here now?</label>
+          <select :id="`current-crop-${index}`" v-model="currentCrops[index]" @change="saved = false">
+            <option value="" disabled>Choose a crop</option>
+            <option v-for="crop in reportCrops" :key="crop.crop" :value="crop.crop">{{ crop.label }}</option>
+          </select>
+          <label class="resource-question-label" :for="`water-supply-${index}`">How reliable is the water supply?</label>
+          <select :id="`water-supply-${index}`" v-model="waterSupplies[index]" @change="saved = false">
+            <option value="full">Reliable / full supply</option>
+            <option value="limited">Some limits</option>
+            <option value="short">Short or unreliable</option>
+          </select>
+        </section>
         <section v-for="section in sections" :key="section.title" class="resource-section">
           <h2><span class="section-icon" aria-hidden="true">{{ section.icon }}</span>{{ section.title }}</h2>
           <ResourceQuestion
@@ -159,13 +267,59 @@ function saveResources() {
         </section>
 
         <div class="resource-submit-row">
-          <p v-if="saved" class="resource-saved" role="status">Your answers are saved for this demo.</p>
-          <button class="primary-button" type="submit">
-            {{ saved ? 'Saved' : 'Save resources' }}
+          <p v-if="saved" class="resource-saved" role="status">Recommendations are ready.</p>
+          <button class="primary-button" type="submit" :disabled="sending">
+            {{ sending ? 'Working on your recommendations…' : saved ? 'Update recommendations' : 'Get crop recommendations' }}
             <span aria-hidden="true">✓</span>
           </button>
         </div>
       </form>
+      <p v-if="requestError" class="api-error" role="alert">{{ requestError }}</p>
+      <template v-for="(result, index) in results" :key="`results-${index}`">
+      <section v-if="result" class="recommendations-result">
+        <p class="eyebrow">{{ fields[index]?.name || `Field ${index + 1}` }}</p>
+        <h2>Crop options for this field</h2>
+        <div class="recommendation-columns">
+          <section class="recommendation-panel">
+            <h3>Growing fit</h3>
+            <p>Metric units · suitability, water, timing, and rotation fit</p>
+            <article v-for="candidate in result.insights.candidates.slice(0, 3)" :key="candidate.crop_id" class="recommendation-card">
+              <h4>{{ candidate.name }}</h4>
+              <p>Fit score: {{ Math.round(candidate.score * 100) }}%</p>
+              <p v-if="candidate.water?.crop_need_mm != null">Water needed: {{ Math.round(candidate.water.crop_need_mm) }} mm<span v-if="candidate.water.rainfed_success_prob != null"> · rainfed success: {{ Math.round(candidate.water.rainfed_success_prob * 100) }}%</span></p>
+              <p v-if="candidate.plant_window">Planting window: days {{ candidate.plant_window.start_doy }}–{{ candidate.plant_window.end_doy }}</p>
+              <p v-for="evidence in candidate.evidence || []" :key="evidence">{{ evidence }}</p>
+            </article>
+            <p v-for="note in result.insights.notes || []" :key="note" class="field-card-help">{{ note }}</p>
+          </section>
+          <section class="recommendation-panel">
+            <h3>Profit comparison</h3>
+            <p>US customary units · estimated dollars per acre</p>
+            <p v-if="result.report?.year_odds">
+              Year outlook: dry {{ formatPercent(result.report.year_odds.dry) }},
+              normal {{ formatPercent(result.report.year_odds.normal) }},
+              wet {{ formatPercent(result.report.year_odds.wet) }}
+            </p>
+            <article v-for="option in result.report?.options.slice(0, 3) || []" :key="option.crop" class="recommendation-card">
+              <h4>{{ option.label || cropName(option.crop) }}</h4>
+              <p>{{ option.tag.replaceAll('_', ' ') }}</p>
+              <p>{{ formatMoney(option.expected_profit_per_acre) }} per acre · {{ formatMoney(option.expected_profit_field) }} for this field</p>
+              <p v-if="option.why">{{ option.why }}</p>
+            </article>
+            <p v-if="!result.report" class="field-card-help">Choose a current crop above to see the profit comparison.</p>
+            <p class="field-card-help">Profit inputs are estimates; review the assumptions before using them to plan.</p>
+            <details v-if="result.report">
+              <summary>Data and assumptions</summary>
+              <p v-if="result.report.disclaimer">{{ result.report.disclaimer }}</p>
+              <ul>
+                <li v-for="note in result.report.data_notes || []" :key="note">{{ note }}</li>
+              </ul>
+              <p>Data sources: {{ (result.report.data_sources || []).join(', ') }}</p>
+            </details>
+          </section>
+        </div>
+      </section>
+      </template>
     </section>
   </main>
 </template>

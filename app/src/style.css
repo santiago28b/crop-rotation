@@ -987,3 +987,69 @@ h1 {
     width: 100%;
   }
 }
+.comparison-inputs {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.comparison-inputs select {
+  width: 100%;
+  max-width: 32rem;
+}
+
+.api-error {
+  margin: 1rem 0;
+  padding: 1rem;
+  color: #7d251f;
+  background: #fff1ee;
+  border: 1px solid #e7b0a9;
+  border-radius: 0.75rem;
+}
+
+.recommendations-result {
+  margin: 2rem 0;
+  padding: clamp(1rem, 3vw, 2rem);
+  background: #f5f8f2;
+  border: 1px solid #dce6d8;
+  border-radius: 1.25rem;
+}
+
+.recommendation-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.recommendation-panel,
+.recommendation-card {
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #dce6d8;
+  border-radius: 0.9rem;
+}
+
+.recommendation-panel h3,
+.recommendation-card h4 {
+  margin-top: 0;
+}
+
+.recommendation-card + .recommendation-card {
+  margin-top: 0.75rem;
+}
+
+.recommendation-panel > p,
+.recommendation-card > p {
+  line-height: 1.5;
+}
+
+.history-source-label {
+  display: block;
+  color: #526457;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 760px) {
+  .recommendation-columns {
+    grid-template-columns: 1fr;
+  }
+}

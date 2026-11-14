@@ -6,7 +6,7 @@ _Planning draft — November 14, 2026_
 
 - The initial audience is farmers with fewer resources; the first version is not Idaho-specific.
 - This is a hackathon project with limited build time, so the first release should stay narrow and demoable.
-- The user is building the frontend in Vue. The backend is expected to use Python, but its details can be decided later.
+- The frontend is built in Vue and the backend uses FastAPI. Their shared contracts and local run steps are documented in the repository README and backend API docs.
 - Weak connectivity and offline support are out of scope for the initial build.
 
 ## Purpose
@@ -22,7 +22,7 @@ Help a farmer understand which crops may fit a particular field and make a pract
 5. The app combines field, resource, crop-history, and environmental information to show suitable crop options.
 6. The user chooses a crop and asks the app to generate a plan with timing and care guidance, including planting and watering.
 
-The existing README describes a narrower comparison of three rotations and emphasizes water and soil health for Idaho's Treasure Valley. The current target is broader: farmers with fewer resources, without an Idaho-only focus. The README names NASA POWER, OpenET, GRACE/GRACE-FO, USGS, SMAP, SSURGO, CropScape (USDA), and MODIS NDVI as possible data sources. The new flow above expands that concept. These sources, geographic coverage, data availability, and exact role of each source need confirmation before they are presented as settled product behavior. In particular, crop history is currently associated with USDA CropScape/Crop Data Layer in the README, not NASA data.
+The README describes the original Treasure Valley comparison concept. The current target is broader: farmers with fewer resources, without an Idaho-only focus. NASA POWER, OpenET, GRACE/GRACE-FO, USGS, SMAP, SSURGO, CropScape (USDA), and MODIS NDVI remain planned or active sources at different levels of coverage. Crop history comes from USDA CropScape/Crop Data Layer in the continental US; elsewhere, the farmer enters it.
 
 ## Product principles
 
@@ -78,7 +78,7 @@ The user's stated role is frontend/UI. The first design/build phase should there
 - Showing how recommendations and plans explain their reasoning and uncertainty.
 - Defining the frontend data contracts and integration assumptions with whoever owns backend, auth, and data services; do not imply those services already exist.
 
-The README currently documents data scripts and a project concept, but no frontend files appear in the current repository listing. The frontend is planned in Vue and the backend in Python; the UI can begin with mock data while backend contracts are still undecided.
+The Vue frontend now uses the FastAPI profile, history, insights, crop catalog, and report endpoints. Keep loading, unavailable-data, and API-error states visible because upstream data can be slow or unavailable.
 
 ## Decisions and questions for the product owner
 
@@ -141,4 +141,4 @@ Keep the first build focused on a small, demoable Vue experience using realistic
 
 ## Not yet specified
 
-This draft does not assume that authentication, map drawing, NASA/USDA data pipelines, recommendation logic, or plan generation are already implemented. It records the intended experience and identifies the product decisions and service dependencies that need owners.
+Authentication, persistent farm accounts, multi-user access, a generated task calendar, and offline support are still outside the current integrated flow. The backend returns field profiles, ranked crop candidates, and a separate profit comparison; it does not yet generate a full farm work plan.

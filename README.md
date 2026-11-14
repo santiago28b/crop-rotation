@@ -56,6 +56,25 @@ python scripts/fetch_openet.py
 
 Output: yearly water / heat / frost / soil-moisture facts in `data/processed/`, with each year labeled dry, normal or wet.
 
+## Run the app
+
+Start the FastAPI app from the repository root:
+
+```
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+In another terminal, start the Vue app:
+
+```
+cd app
+npm install
+npm run dev
+```
+
+The Vite development server proxies `/api` requests to `http://localhost:8000`. Set `VITE_API_BASE_URL` when the API is hosted elsewhere. The UI uses `/fields/profile` and `/fields/history` to review the field and estimated crop history, then `/fields/insights` and `/report` for separate agronomy and profit views. The insights API uses metric units; `/report` uses acres, inches, and dollars per acre. Profit and yield inputs in the current report data are placeholders.
+
 ## Recommendation engine
 
 ```
