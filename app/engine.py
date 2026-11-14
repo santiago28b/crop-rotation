@@ -258,6 +258,33 @@ def check_fit(crop: dict, climate: dict, previous_crop: str | None) -> list[str]
 
 # ----------------------------------------------------------------- the report
 
+def plain_summary(options: list[dict], odds: dict, supply: str) -> str:
+    """Two or three plain sentences a farmer can read first, built from the ranking."""
+    cur = options[0]
+    best = max(options, key=lambda o: o["score"])
+    dry_pct = round(odds["dry"] * 100)
+    s = []
+    if best is cur:
+        s.append(f"Staying with {cur['label'].lower()} looks like your best option next season: "
+                 f"about ${cur['expected_profit_per_acre']:,}/acre expected.")
+    else:
+        s.append(f"Your best option for next season looks like {best['label'].lower()}: about "
+                 f"${best['expected_profit_per_acre']:,}/acre expected, compared with "
+                 f"${cur['expected_profit_per_acre']:,}/acre if you stay with {cur['label'].lower()}.")
+    rest = options[1:] or options
+    safest = max(rest, key=lambda o: o["dry_year_profit_per_acre"])
+    dry_profit = safest["dry_year_profit_per_acre"]
+    if dry_profit >= 0:
+        s.append(f"If next year turns dry ({dry_pct}% odds), {safest['label'].lower()} holds up best, "
+                 f"still clearing about ${dry_profit:,}/acre.")
+    else:
+        s.append(f"If next year turns dry ({dry_pct}% odds), every option loses money; "
+                 f"{safest['label'].lower()} loses the least (${dry_profit:,}/acre).")
+    if supply != "full":
+        s.append(f"These numbers already assume your {supply} water supply.")
+    return " ".join(s)
+
+
 def _why(option: dict, tag: str, supply: str) -> str:
     dry = option["by_year_type"]["dry"]
     parts = {
@@ -363,6 +390,13 @@ def build_report(field, current_crop: str, water_supply: str = "full",
     pick("best_overall", lambda s: s["score"])
     pick("safest_dry_year", lambda s: s["dry_year_profit_per_acre"])
     pick("best_for_soil", lambda s: (s["soil_score"], s["score"]))
+    while len(picks) < 5:               # fill to a top 5 with the next best scores
+        pool = [s for s in others if s["crop"] not in chosen]
+        if not pool:
+            break
+        best = max(pool, key=lambda s: s["score"])
+        picks.append((best["crop"], "alternative"))
+        chosen.add(best["crop"])
 
     options = []
     for name, tag in picks:
@@ -387,6 +421,7 @@ def build_report(field, current_crop: str, water_supply: str = "full",
     options = options[:1] + sorted(options[1:], key=lambda o: o["score"], reverse=True)
 
     return {
+        "summary": plain_summary(options, odds, water_supply),
         "field": {"lat": lat, "lon": lon, "acres": acres},
         "location": location,
         "region_warning": region_warning(lat, lon, location),

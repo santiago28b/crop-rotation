@@ -1,10 +1,10 @@
 crop,label,unit,water_need_in,ky,yield_per_acre,price_per_unit,cost_per_acre,frost_free_days_needed,heat_sensitivity,soil_score,fixes_nitrogen,no_repeat,avoid_after,soil_note,source
-alfalfa,Alfalfa hay,ton,38,1.1,5.5,180,750,0,0.002,9,1,0,,Deep roots and adds nitrogen; perennial (stays 3-5 years),placeholder
-corn_silage,Corn silage,ton,27,1.25,30,50,1150,120,0.004,3,0,0,,Whole plant is removed so little residue is left on the soil,placeholder
-winter_wheat,Winter wheat,bu,23,1.05,110,6.0,560,0,0.002,6,0,0,,Covers soil over winter and leaves straw residue,placeholder
-spring_barley,Spring barley,bu,20,1.0,110,5.5,520,90,0.004,6,0,0,,Short season and leaves straw residue,placeholder
-sugar_beets,Sugar beets,ton,33,1.0,40,55,1750,140,0.003,2,0,1,potatoes,Heavy tillage and harvest disturb the soil,placeholder
-onions,Onions,cwt,28,1.1,800,9.0,5200,140,0.003,2,0,1,,Shallow roots and little residue,placeholder
-dry_beans,Dry beans,cwt,19,1.15,25,38,700,95,0.006,5,1,1,,Adds some nitrogen; low water use,placeholder
-potatoes,Potatoes,cwt,27,1.1,500,9.0,3600,120,0.006,1,0,1,sugar_beets,Heavy tillage; needs 3+ years between potato crops,placeholder
-mint,Mint (oil),lb,35,1.1,100,22,1900,0,0.003,4,0,0,,Perennial; keeps soil covered,placeholder
+alfalfa,Alfalfa hay,ton,39.8,1.1,4.27,192.50,980,0,0.002,9,1,0,,Deep roots and adds nitrogen; perennial (stays 3-5 years),water AgriMet Parma; ky FAO-33; cost UI budget SW-ID 2019; yield+price USDA NASS ID 2020-25
+corn_silage,Corn silage,ton,25.8,1.25,29.33,35.00,1228,120,0.004,3,0,0,,Whole plant is removed so little residue is left on the soil,water AgriMet Parma (field corn); ky FAO-33; cost+price UI budget SC-ID 2019; yield USDA NASS ID 2020-25
+winter_wheat,Winter wheat,bu,23.4,1.0,88.57,6.25,818,0,0.002,6,0,0,,Covers soil over winter and leaves straw residue,water AgriMet Parma (winter grain); ky FAO-33; cost UI budget SW-ID 2019; yield+price USDA NASS ID 2020-25
+spring_barley,Spring barley,bu,25.0,1.0,106.14,6.30,767,90,0.004,6,0,0,,Short season and leaves straw residue,water AgriMet Parma (spring grain); ky FAO-33; cost UI budget SC-ID 2019 feed barley; yield+price USDA NASS ID 2020-25
+sugar_beets,Sugar beets,ton,32.2,1.0,40.21,61.72,2043,140,0.003,2,0,1,potatoes,Heavy tillage and harvest disturb the soil,water AgriMet Parma; ky FAO-33; cost UI budget SW-ID 2022; yield+price USDA NASS ID 2020-25
+onions,Onions,cwt,27.6,1.1,755,18.23,5807,140,0.003,2,0,1,,Shallow roots and little residue,water AgriMet Parma; ky FAO-33; cost OSU 2021 ID with storage no packing; yield+price USDA NASS ID 2020-25
+dry_beans,Dry beans,cwt,20.0,1.15,26.14,37.10,914,95,0.006,5,1,1,,Adds some nitrogen; low water use,water AgriMet Parma; ky FAO-33; cost UI budget SC-ID 2019 pinto; yield+price USDA NASS ID 2020-25
+potatoes,Potatoes,cwt,26.1,1.1,427.86,9.17,3730,120,0.006,1,0,1,sugar_beets,Heavy tillage; needs 3+ years between potato crops,water AgriMet Parma; ky FAO-33; cost UI budget SW-ID 2019 Russet w/ fumigation; yield+price USDA NASS ID 2020-25
+mint,Mint (oil),lb,25.4,1.1,111.17,19.08,2522,0,0.003,4,0,0,,Perennial; keeps soil covered,water AgriMet Parma (peppermint); ky assumed (not in FAO-33); cost UI budget SW-ID 2013 (old); yield+price USDA NASS ID 2020-25
