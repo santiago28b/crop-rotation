@@ -106,3 +106,10 @@ def test_field_key_is_an_alias_of_geometry():
     assert FieldProfileRequest(field=poly).geometry.type == "Polygon"
     assert FieldProfileRequest(geometry=poly).geometry.type == "Polygon"
     assert FieldInsightsRequest.model_validate({"field": poly}).geometry.coordinates == poly["coordinates"]
+
+
+def test_cdl_categories_seen_live_are_mapped():
+    # CropScape returns "Grass/Pasture" (observed live 2026-11-14), not "Grassland/Pasture"
+    from app.sources.cdl import CDL_TO_CROP
+    assert CDL_TO_CROP["Grass/Pasture"] == "pasture"
+    assert CDL_TO_CROP["Grassland/Pasture"] == "pasture"
