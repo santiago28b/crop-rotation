@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
+import SatelliteLayers from './SatelliteLayers.vue'
 
 const props = defineProps({
   active: { type: Boolean, default: true },
@@ -8,6 +9,7 @@ const props = defineProps({
 const emit = defineEmits(['go-back', 'continue'])
 
 const mapElement = ref(null)
+const leafletMap = ref(null)
 const points = ref([])
 const fields = ref([])
 const drawing = ref(true)
@@ -164,6 +166,7 @@ onMounted(() => {
   pointLayer = L.layerGroup().addTo(map)
   boundaryLayer = L.layerGroup().addTo(map)
   map.on('click', addPoint)
+  leafletMap.value = map
   requestAnimationFrame(() => map.invalidateSize())
   findMyLocation()
 })
@@ -217,6 +220,7 @@ onBeforeUnmount(() => {
               <p>This can take a few seconds.</p>
             </div>
           </div>
+          <SatelliteLayers :map="leafletMap" />
         </div>
 
         <aside class="field-panel" aria-label="Field outline controls">
