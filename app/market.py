@@ -19,6 +19,8 @@ from pathlib import Path
 
 import requests
 
+import app.config  # noqa: F401  (loads .env so NASS_API_KEY can live there)
+
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT / "data" / "cache"
 FCC_URL = "https://geo.fcc.gov/api/census/block/find"
@@ -68,10 +70,12 @@ NASS_ITEMS = {
     },
     "dry_beans": {
         "commodity": "BEANS",
-        "yield": {"items": ["BEANS, DRY EDIBLE - YIELD, MEASURED IN LB / ACRE",
+        "yield": {"items": ["BEANS, DRY EDIBLE, (EXCL CHICKPEAS) - YIELD, MEASURED IN LB / ACRE",
+                            "BEANS, DRY EDIBLE - YIELD, MEASURED IN LB / ACRE",
                             "BEANS, DRY EDIBLE, INCL CHICKPEAS - YIELD, MEASURED IN LB / ACRE"],
                   "scale": 0.01},
-        "price": {"items": ["BEANS, DRY EDIBLE - PRICE RECEIVED, MEASURED IN $ / CWT",
+        "price": {"items": ["BEANS, DRY EDIBLE, (EXCL CHICKPEAS) - PRICE RECEIVED, MEASURED IN $ / CWT",
+                            "BEANS, DRY EDIBLE - PRICE RECEIVED, MEASURED IN $ / CWT",
                             "BEANS, DRY EDIBLE, INCL CHICKPEAS - PRICE RECEIVED, MEASURED IN $ / CWT"]},
     },
     "potatoes": {
