@@ -74,6 +74,19 @@ def test_area_crops_limit_candidates():
     assert r["unknown_area_crops"] == ["quinoa"]
 
 
+def test_single_area_crop_still_gives_three_options():
+    # README example: only one area crop listed; report must still rank >= 3
+    r = report(area_crops=[{"crop": "alfalfa", "share": 0.35}])
+    assert len(r["options"]) >= 3
+    assert {o["crop"] for o in r["options"]} >= {"corn_silage", "alfalfa"}
+    # A tag must not make a false claim: "safest_dry_year" only on the option
+    # that really has the best dry-year profit of the non-current options.
+    by_tag = {o["tag"]: o for o in r["options"]}
+    if "safest_dry_year" in by_tag:
+        best_dry = max(o["dry_year_profit_per_acre"] for o in r["options"][1:])
+        assert by_tag["safest_dry_year"]["dry_year_profit_per_acre"] == best_dry
+
+
 def test_bad_input():
     for kw in ({"current_crop": "bananas"}, {"water_supply": "lots"}):
         try:
