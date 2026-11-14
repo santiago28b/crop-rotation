@@ -98,6 +98,28 @@ def test_top5_and_summary():
     assert "/acre" in r["summary"]
 
 
+def test_irrigation_method_and_water_source():
+    dry_met = lambda **kw: report(water_supply="limited", **kw)["options"][0]["by_year_type"]["dry"]["water_met_pct"]
+    base = dry_met()
+    # defaults are sprinkler + surface water: explicit values change nothing
+    assert dry_met(irrigation_method="sprinkler", water_source="surface") == base
+    # more efficient application -> more of the allotment reaches the crop
+    assert dry_met(irrigation_method="surface") < base < dry_met(irrigation_method="drip")
+    # a well is not cut in a dry year; a canal is
+    assert dry_met(water_source="surface") < dry_met(water_source="mixed") < dry_met(water_source="groundwater")
+    # dryland: rain only
+    none = report(irrigation_method="none")
+    assert none["options"][0]["by_year_type"]["normal"]["water_available_in"] < 5
+    assert none["assumptions"]["irrigation_efficiency"] == 0.0
+    assert none["inputs"]["irrigation_method"] == "none"
+    for bad in ({"irrigation_method": "bucket"}, {"water_source": "magic"}):
+        try:
+            report(**bad)
+            assert False, "should have raised"
+        except ValueError:
+            pass
+
+
 def test_bad_input():
     for kw in ({"current_crop": "bananas"}, {"water_supply": "lots"}):
         try:

@@ -43,4 +43,11 @@ budget's $35/ton is used.
 ## Still judgment, not measured sources
 frost_free_days_needed, heat_sensitivity, soil_score, rotation rules
 (avoid_after, no_repeat), and the irrigation assumptions at the top of
-app/engine.py (full allotment, efficiency, dry-year cuts).
+app/engine.py (full allotment, dry-year cuts by water source — the well
+"not cut in a single dry year" value is an assumption, not a measurement).
+
+## Irrigation efficiency by method
+Field application efficiency: surface 60%, sprinkler 75%, drip 90% — FAO
+Irrigation Water Management Training Manual No. 4 (Brouwer, Prins &
+Heibloem, 1989), Annex I. Used by /report (`irrigation_method`) and by the
+insights engine's shared water budget.

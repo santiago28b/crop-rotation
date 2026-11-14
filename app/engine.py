@@ -34,6 +34,12 @@ MM_PER_IN = 25.4
 ASSUMPTIONS = {
     "full_allotment_in": 42.0,        # irrigation water delivered per acre in a full-supply year
     "irrigation_efficiency": 0.75,    # share of delivered water the crop actually gets
+    # Field application efficiency by method (FAO Irrigation Water Management Training
+    # Manual 4, Annex I). "none" = dryland: no irrigation water at all.
+    "efficiency_by_method": {"none": 0.0, "surface": 0.60, "sprinkler": 0.75, "drip": 0.90},
+    # Share of the allotment still delivered in a dry year, by where the water comes from.
+    # Canal/river deliveries are cut; a well is assumed not to be cut in a single dry year.
+    "dry_delivery_by_source": {"surface": 0.75, "groundwater": 1.0, "mixed": 0.875},
     "supply_level": {"full": 1.0, "limited": 0.75, "short": 0.5},
     "year_delivery": {"dry": 0.75, "normal": 1.0, "wet": 1.0},   # canal cuts in dry years
     "year_demand": {"dry": 1.08, "normal": 1.0, "wet": 0.95},    # crops need more in hot dry years
@@ -193,6 +199,22 @@ def year_odds(climate: dict, snowpack: str = "normal") -> dict:
     return {t: odds[t] / total for t in YEAR_TYPES}
 
 
+def request_assumptions(irrigation_method: str = "sprinkler", water_source: str = "surface",
+                        a=ASSUMPTIONS) -> dict:
+    """ASSUMPTIONS adjusted for how this field is irrigated and where its water comes from.
+
+    The defaults (sprinkler, surface water) give back the base assumptions unchanged.
+    """
+    if irrigation_method not in a["efficiency_by_method"]:
+        raise ValueError("irrigation_method must be none, surface, sprinkler or drip")
+    if water_source not in a["dry_delivery_by_source"]:
+        raise ValueError("water_source must be surface, groundwater or mixed")
+    out = dict(a)
+    out["irrigation_efficiency"] = a["efficiency_by_method"][irrigation_method]
+    out["year_delivery"] = {**a["year_delivery"], "dry": a["dry_delivery_by_source"][water_source]}
+    return out
+
+
 def water_available_in(supply: str, year_type: str, climate: dict, a=ASSUMPTIONS) -> float:
     irrigation = (a["full_allotment_in"] * a["supply_level"][supply]
                   * a["year_delivery"][year_type] * a["irrigation_efficiency"])
@@ -317,9 +339,11 @@ def _risks(option: dict, problems: list[str]) -> list[str]:
 def build_report(field, current_crop: str, water_supply: str = "full",
                  area_crops: list[dict] | None = None, snowpack: str = "auto",
                  crops: dict | None = None, climate: dict | None = None,
-                 location: dict | None = None) -> dict:
+                 location: dict | None = None,
+                 irrigation_method: str = "sprinkler", water_source: str = "surface") -> dict:
     use_market = crops is None      # a crop table passed in by hand is used as is
     crops = crops or load_crops()
+    assumptions = request_assumptions(irrigation_method, water_source)
     if water_supply not in ASSUMPTIONS["supply_level"]:
         raise ValueError("water_supply must be full, limited or short")
     if snowpack != "auto" and snowpack not in SNOWPACK_SHIFT:
@@ -350,7 +374,7 @@ def build_report(field, current_crop: str, water_supply: str = "full",
     scored, excluded = {}, []
     for name in candidates:
         problems = check_fit(crops[name], climate, current_crop)
-        result = score_crop(crops[name], water_supply, odds, climate, current_crop)
+        result = score_crop(crops[name], water_supply, odds, climate, current_crop, assumptions)
         result["problems"] = problems
         if problems and name != current_crop:
             excluded.append({"crop": name, "label": crops[name]["label"], "reasons": problems})
@@ -366,7 +390,7 @@ def build_report(field, current_crop: str, water_supply: str = "full",
             continue
         if check_fit(crops[name], climate, current_crop):
             continue
-        result = score_crop(crops[name], water_supply, odds, climate, current_crop)
+        result = score_crop(crops[name], water_supply, odds, climate, current_crop, assumptions)
         result["problems"] = []
         scored[name] = result
 
@@ -425,7 +449,8 @@ def build_report(field, current_crop: str, water_supply: str = "full",
         "field": {"lat": lat, "lon": lon, "acres": acres},
         "location": location,
         "region_warning": region_warning(lat, lon, location),
-        "inputs": {"current_crop": current_crop, "water_supply": water_supply, "snowpack": snowpack},
+        "inputs": {"current_crop": current_crop, "water_supply": water_supply, "snowpack": snowpack,
+                   "irrigation_method": irrigation_method, "water_source": water_source},
         "snowpack": snow,
         "field_water_use": field_water,
         "year_odds": {t: round(odds[t], 2) for t in YEAR_TYPES},
@@ -441,7 +466,7 @@ def build_report(field, current_crop: str, water_supply: str = "full",
             "Crop table: data/crops.csv ("
             + ", ".join(sorted({c["source"] for c in crops.values()})) + ")",
         ],
-        "assumptions": ASSUMPTIONS,
+        "assumptions": assumptions,
         "disclaimer": "This tool supports decisions. It does not replace your judgment "
                       "or local agricultural experts.",
     }

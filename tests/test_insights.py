@@ -113,3 +113,27 @@ def test_cdl_categories_seen_live_are_mapped():
     from app.sources.cdl import CDL_TO_CROP
     assert CDL_TO_CROP["Grass/Pasture"] == "pasture"
     assert CDL_TO_CROP["Grassland/Pasture"] == "pasture"
+
+
+def test_profile_water_use_prefill_and_shared_water_budget():
+    from app.insights.profile import classify_water_use
+    from app.insights.recommend import _allotment_mm
+    from app.schemas import Irrigation
+
+    # 30 in of measured ET against 100 mm of rain: irrigated
+    wet = classify_water_use({"season_et_in": 30.0, "years": "2021-2025", "source": "OpenET"}, 100)
+    assert wet.available and wet.looks_irrigated is True and wet.season_et_mm == 762
+    # desert-like ET close to rain: not irrigated
+    dry = classify_water_use({"season_et_in": 6.0, "years": "2021-2025", "source": "OpenET"}, 100)
+    assert dry.looks_irrigated is False
+    # no key / failure: unknown, never a guess
+    none = classify_water_use({"season_et_in": None, "source": "OpenET: not used (RuntimeError)"}, 100)
+    assert none.available is False and none.looks_irrigated is None
+
+    # one water budget for both engines: 42 in x 0.75 (limited) x 0.75 (sprinkler) = 23.6 in = 600 mm
+    assert _allotment_mm(Irrigation(type="sprinkler", supply="limited")) == 600
+    assert _allotment_mm(Irrigation(type="pivot", supply="limited")) == 600
+    assert _allotment_mm(Irrigation(type="drip", supply="full")) > _allotment_mm(Irrigation(type="surface", supply="full"))
+    assert _allotment_mm(Irrigation(type="sprinkler", supply="full", seasonal_allotment_mm=300)) == 300   # farmer's number wins
+    assert _allotment_mm(Irrigation(type="sprinkler")) is None
+    assert _allotment_mm(Irrigation(type="none", supply="full")) is None

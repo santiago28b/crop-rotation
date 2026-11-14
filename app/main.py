@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from app.engine import build_report, load_crops
 
-app = FastAPI(title="Crop Rotation Advisor")
+app = FastAPI(title="Patato")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -28,6 +28,10 @@ class ReportRequest(BaseModel):
     water_supply: Literal["full", "limited", "short"] = "full"
     area_crops: list[AreaCrop] | None = None      # common crops in the area (from Ethan's part)
     snowpack: Literal["auto", "low", "normal", "high"] = "auto"   # auto = live SNOTEL near Boise
+    # How the field is watered -> irrigation efficiency ("none" = dryland, rain only)
+    irrigation_method: Literal["none", "surface", "sprinkler", "drip"] = "sprinkler"
+    # Where the water comes from -> how hard a dry year cuts deliveries
+    water_source: Literal["surface", "groundwater", "mixed"] = "surface"
 
 
 @app.get("/health")
@@ -50,6 +54,8 @@ def report(req: ReportRequest):
             water_supply=req.water_supply,
             area_crops=[c.model_dump() for c in req.area_crops] if req.area_crops else None,
             snowpack=req.snowpack,
+            irrigation_method=req.irrigation_method,
+            water_source=req.water_source,
         )
     except (ValueError, KeyError) as e:
         raise HTTPException(status_code=400, detail=str(e))
