@@ -17,6 +17,8 @@ Try it:  python -m app.engine
 """
 
 import csv
+import time
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 
@@ -99,6 +101,24 @@ def load_climate(lat: float, lon: float) -> dict:
         return fallback
 
 
+_POOL = ThreadPoolExecutor(max_workers=12)   # shared: a slow lookup finishes in the background and fills its cache
+OPENET_WAIT_S = 10              # measured field water use is a bonus; don't hold the report for it
+SNOW_WAIT_S = 15
+
+_SNOW_CACHE: dict = {}          # {"at": epoch seconds, "status": {...}}
+SNOW_CACHE_SECONDS = 3600       # SNOTEL posts one reading a day; no need to ask per request
+_LOCATION_CACHE: dict = {}      # {(lat, lon) rounded to ~1 km: location}
+
+
+def _live_snowpack() -> dict:
+    hit = _SNOW_CACHE.get("status")
+    if hit and time.time() - _SNOW_CACHE["at"] < SNOW_CACHE_SECONDS:
+        return dict(hit)
+    status = snowpack_status()
+    _SNOW_CACHE.update(at=time.time(), status=dict(status))
+    return status
+
+
 def resolve_snowpack(choice: str, lat: float, lon: float) -> dict:
     """Snowpack level for the year odds: the user's choice, or SNOTEL when "auto"."""
     if choice != "auto":
@@ -108,7 +128,7 @@ def resolve_snowpack(choice: str, lat: float, lon: float) -> dict:
         return {"level": "normal", "source": "Snowpack: not used (outside the Boise River area)",
                 "note": "Live snowpack is only wired up for the Boise River basin."}
     try:
-        status = snowpack_status()
+        status = _live_snowpack()
     except Exception as e:
         return {"level": "normal", "source": f"Snowpack: SNOTEL unavailable ({type(e).__name__})",
                 "note": "Could not read SNOTEL, so a normal snow year is assumed."}
@@ -157,10 +177,31 @@ def apply_field_water(crops: dict, current_crop: str, field_water: dict) -> dict
     return {**crops, current_crop: row}
 
 
+def apply_local_water_needs(crops: dict, needs_in: dict, skip: str | None = None) -> dict:
+    """Outside southwest Idaho, replace the table's water needs with ones computed for
+    THIS location (FAO-56 crop coefficients x NASA POWER reference ET, from the
+    agronomy engine). `skip` = a crop that already has a measured value (OpenET)."""
+    out = dict(crops)
+    for name, inches in needs_in.items():
+        if name not in out or name == skip or not inches or inches <= 0:
+            continue
+        row = dict(out[name])
+        row["water_need_in"] = round(float(inches), 1)
+        notes = dict(row.get("data_notes") or {})
+        notes["water_need"] = "FAO-56 crop water need computed for this location (NASA POWER)"
+        row["data_notes"] = notes
+        out[name] = row
+    return out
+
+
 def find_location(lat: float, lon: float) -> dict | None:
     """State and county of the field, or None if the lookup can't be done."""
+    key = (round(lat, 2), round(lon, 2))
+    if key in _LOCATION_CACHE:
+        return _LOCATION_CACHE[key]
     try:
-        return locate(lat, lon)
+        _LOCATION_CACHE[key] = locate(lat, lon)
+        return _LOCATION_CACHE[key]
     except Exception:
         return None
 
@@ -184,10 +225,17 @@ def region_warning(lat: float, lon: float, location: dict | None) -> str | None:
     """Costs and water numbers are only valid in the home region. Say so elsewhere."""
     if in_home_region(lat, lon):
         return None
-    place = f"{location['county']}, {location['state']}" if location else "this location"
-    return (f"This tool is tuned for {HOME_REGION['name']}. For {place}, climate is local, "
-            "but the crop list, costs per acre, crop water needs and irrigation assumptions "
-            "are southwest Idaho numbers. Treat the dollar figures as rough.")
+    if location:
+        place = f"{location['county']}, {location['state']}"
+        local = ("Local here: climate and rainfall (NASA POWER), crop water needs (FAO-56), and "
+                 f"{location['state']} yields and prices where USDA reports them.")
+    else:
+        place = "this location"
+        local = ("Local here: climate and rainfall (NASA POWER) and crop water needs (FAO-56). "
+                 "Yields and prices are US (Idaho) numbers, since USDA only covers the US.")
+    return (f"This tool is tuned for {HOME_REGION['name']}. For {place}: {local} "
+            "Still southwest Idaho numbers: the crop list, costs per acre and the irrigation "
+            "allotment. Treat the dollar figures as a rough comparison, not a budget.")
 
 
 # ------------------------------------------------------------------- the math
@@ -340,7 +388,8 @@ def build_report(field, current_crop: str, water_supply: str = "full",
                  area_crops: list[dict] | None = None, snowpack: str = "auto",
                  crops: dict | None = None, climate: dict | None = None,
                  location: dict | None = None,
-                 irrigation_method: str = "sprinkler", water_source: str = "surface") -> dict:
+                 irrigation_method: str = "sprinkler", water_source: str = "surface",
+                 crop_water_need_in: dict | None = None) -> dict:
     use_market = crops is None      # a crop table passed in by hand is used as is
     crops = crops or load_crops()
     assumptions = request_assumptions(irrigation_method, water_source)
@@ -352,17 +401,45 @@ def build_report(field, current_crop: str, water_supply: str = "full",
         raise ValueError(f"unknown current_crop '{current_crop}'. Known: {sorted(crops)}")
 
     lat, lon, acres = field_center_and_acres(field)
-    climate = climate or load_climate(lat, lon)
-    location = location or find_location(lat, lon)
-    market_source = "Yields and prices: crop table (data/crops.csv)"
+    # The outside lookups don't depend on each other: ask them all at once.
+    f_climate = _POOL.submit(load_climate, lat, lon) if climate is None else None
+    f_location = _POOL.submit(find_location, lat, lon) if location is None else None
+    f_snow = _POOL.submit(resolve_snowpack, snowpack, lat, lon)
+    f_water = _POOL.submit(resolve_field_water, lat, lon) if use_market else None
+    climate = climate or f_climate.result()
+    location = location or f_location.result()
+    try:
+        snow = f_snow.result(timeout=SNOW_WAIT_S)
+    except Exception:
+        snow = {"level": "normal", "source": "Snowpack: SNOTEL too slow to answer",
+                "note": "Could not read SNOTEL in time, so a normal snow year is assumed."}
     field_water = None
+    if f_water:
+        try:
+            field_water = f_water.result(timeout=OPENET_WAIT_S)
+        except Exception:      # still running: it will be cached for the next report
+            field_water = {"season_et_in": None, "source": "OpenET: not used (too slow to answer this time)",
+                           "note": "Measured field water use was not ready; crop table water needs used. "
+                                   "Run the report again in a minute to include it."}
+
+    market_source = "Yields and prices: crop table (data/crops.csv)"
     if use_market:      # production path (a hand-passed crop table is used as is)
         crops, market_source = with_local_market(crops, location)
-        field_water = resolve_field_water(lat, lon)
-        if field_water["season_et_in"] is not None:
-            crops = apply_field_water(crops, current_crop, field_water)
-    snow = resolve_snowpack(snowpack, lat, lon)
+    measured = None
+    if field_water and field_water["season_et_in"] is not None:
+        crops = apply_field_water(crops, current_crop, field_water)
+        measured = current_crop if field_water.get("applied_to_current_crop") else None
+    if crop_water_need_in and not in_home_region(lat, lon):
+        crops = apply_local_water_needs(crops, crop_water_need_in, skip=measured)
     odds = year_odds(climate, snow["level"])
+
+    # Outside southwest Idaho, only rank crops USDA actually reports for that state.
+    # Otherwise an Idaho onion yield would "win" in a place nobody grows onions.
+    not_grown_here = set()
+    if (use_market and location and not in_home_region(lat, lon)
+            and market_source.startswith("Yields and prices: USDA NASS")):
+        not_grown_here = {name for name, row in crops.items()
+                          if "USDA NASS" not in str((row.get("data_notes") or {}).get("yield", ""))}
 
     # Candidates = crops common in the area (from Ethan) that we have numbers for
     area_names = [c["crop"] for c in (area_crops or [])]
@@ -373,6 +450,11 @@ def build_report(field, current_crop: str, water_supply: str = "full",
 
     scored, excluded = {}, []
     for name in candidates:
+        if name in not_grown_here and name != current_crop:
+            excluded.append({"crop": name, "label": crops[name]["label"], "reasons": [
+                f"USDA reports no {location['state']} yield for this crop, so it is probably "
+                "not grown commercially here"]})
+            continue
         problems = check_fit(crops[name], climate, current_crop)
         result = score_crop(crops[name], water_supply, odds, climate, current_crop, assumptions)
         result["problems"] = problems
@@ -386,7 +468,7 @@ def build_report(field, current_crop: str, water_supply: str = "full",
     for name in crops:
         if len(scored) >= 3:
             break
-        if name in scored or name in {e["crop"] for e in excluded}:
+        if name in scored or name in not_grown_here or name in {e["crop"] for e in excluded}:
             continue
         if check_fit(crops[name], climate, current_crop):
             continue
@@ -394,33 +476,21 @@ def build_report(field, current_crop: str, water_supply: str = "full",
         result["problems"] = []
         scored[name] = result
 
-    # Pick the options
-    picks: list[tuple[str, str]] = [(current_crop, "current")]
+    # Pick the options: the current crop plus the 4 best by money (score = expected
+    # profit minus half the dry-year downside). Tags then describe what each one is
+    # best at among the crops shown, so a tag is never a false claim.
     others = [s for n, s in scored.items() if n != current_crop]
-    chosen = {current_crop}
-
-    def pick(tag, key):
-        pool = [s for s in others if s["crop"] not in chosen]
-        if pool:
-            best = max(pool, key=key)
-            # If a crop we already picked beats this one on the same measure,
-            # the tag would be a false claim ("safest in a dry year" on a crop
-            # that loses the most). Call it an alternative instead.
-            if key(best) < key(max(others, key=key)):
-                tag = "alternative"
-            picks.append((best["crop"], tag))
-            chosen.add(best["crop"])
-
-    pick("best_overall", lambda s: s["score"])
-    pick("safest_dry_year", lambda s: s["dry_year_profit_per_acre"])
-    pick("best_for_soil", lambda s: (s["soil_score"], s["score"]))
-    while len(picks) < 5:               # fill to a top 5 with the next best scores
-        pool = [s for s in others if s["crop"] not in chosen]
-        if not pool:
-            break
-        best = max(pool, key=lambda s: s["score"])
-        picks.append((best["crop"], "alternative"))
-        chosen.add(best["crop"])
+    top = sorted(others, key=lambda s: s["score"], reverse=True)[:4]
+    tags = {s["crop"]: "alternative" for s in top}
+    if top:
+        tags[top[0]["crop"]] = "best_overall"
+        safest = max(top, key=lambda s: s["dry_year_profit_per_acre"])
+        if tags[safest["crop"]] == "alternative":
+            tags[safest["crop"]] = "safest_dry_year"
+        soil = max(top, key=lambda s: (s["soil_score"], s["score"]))
+        if tags[soil["crop"]] == "alternative":
+            tags[soil["crop"]] = "best_for_soil"
+    picks: list[tuple[str, str]] = [(current_crop, "current")] + [(s["crop"], tags[s["crop"]]) for s in top]
 
     options = []
     for name, tag in picks:

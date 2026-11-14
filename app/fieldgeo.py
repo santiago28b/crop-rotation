@@ -15,6 +15,10 @@ from shapely.geometry import MultiPolygon, Point, Polygon, shape
 _GEOD = Geod(ellps="WGS84")
 _TO_ALBERS = Transformer.from_crs(4326, 5070, always_xy=True)  # CONUS Albers, what CropScape wants
 
+# Bigger than any single field (about 25,000 acres). A larger outline is almost always
+# someone tapping corners while the map is zoomed out to a whole region.
+MAX_FIELD_HA = 10_000
+
 # Rough CONUS bounding box: enough to decide "do US-only datasets (CDL, SSURGO) apply here?"
 CONUS_BBOX = (-125.0, 24.5, -66.9, 49.5)  # lon_min, lat_min, lon_max, lat_max
 
@@ -37,6 +41,10 @@ def field_polygon(geometry: dict) -> Polygon:
         geom = max(geom.geoms, key=lambda g: g.area)  # largest part
     if not isinstance(geom, Polygon):
         raise ValueError(f"Unsupported geometry type {geometry.get('type')}")
+    hectares = area_ha(geom)
+    if hectares > MAX_FIELD_HA:
+        raise ValueError(f"That outline covers about {hectares * 2.47105:,.0f} acres, which is too large "
+                         "for one field. Zoom in on the map and outline a single field.")
     return geom
 
 
@@ -74,6 +82,15 @@ def sample_points(poly: Polygon, spacing_m: float = 40.0, max_points: int = 25) 
     # degrees per metre at this latitude
     dlat = spacing_m / 111_320
     dlon = spacing_m / (111_320 * max(math.cos(math.radians(lat_c)), 0.1))
+
+    # Start coarse enough that the first grid has only a few times max_points cells.
+    # Without this a region-sized outline meant billions of point-in-polygon checks
+    # on the event loop, which froze the whole server.
+    cells = ((maxx - minx) / dlon) * ((maxy - miny) / dlat)
+    if cells > max_points * 8:
+        scale = math.sqrt(cells / (max_points * 8))
+        dlat *= scale
+        dlon *= scale
 
     while True:
         pts = []
