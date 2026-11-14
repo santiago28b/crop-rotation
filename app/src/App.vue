@@ -1,5 +1,6 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { requestLocation } from './geolocation.js'
 import FieldPicker from './components/FieldPicker.vue'
 import FieldInfoPage from './components/FieldInfoPage.vue'
 import ResourcesPage from './components/ResourcesPage.vue'
@@ -11,6 +12,10 @@ const fieldInfoStarted = ref(false)
 const resourcesStarted = ref(false)
 const fieldBoundaries = ref([])
 const confirmedFieldData = ref({ profiles: [], answers: [] })
+
+onMounted(() => {
+  requestLocation().catch(() => {})
+})
 
 function openFieldPicker() {
   fieldStarted.value = true

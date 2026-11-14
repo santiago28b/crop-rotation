@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import SatelliteLayers from './SatelliteLayers.vue'
+import { requestLocation } from '../geolocation.js'
 
 const props = defineProps({
   active: { type: Boolean, default: true },
@@ -135,7 +136,7 @@ function continueToFieldInfo() {
   if (fields.value.length > 0) emit('continue', fields.value)
 }
 
-function findMyLocation() {
+async function findMyLocation(refresh = false) {
   if (!navigator.geolocation) {
     message.value = 'Location is not available in this browser. You can move the map by hand.'
     return
@@ -143,18 +144,15 @@ function findMyLocation() {
 
   locating.value = true
   message.value = 'Finding your location…'
-  navigator.geolocation.getCurrentPosition(
-    ({ coords }) => {
-      map.setView([coords.latitude, coords.longitude], 16)
-      locating.value = false
-      message.value = ''
-    },
-    () => {
-      locating.value = false
-      message.value = 'Could not get your location. You can move the map by hand.'
-    },
-    { enableHighAccuracy: true, timeout: 10000 },
-  )
+  try {
+    const { coords } = await requestLocation({ refresh })
+    map?.setView([coords.latitude, coords.longitude], 16)
+    message.value = ''
+  } catch {
+    message.value = 'Could not get your location. You can move the map by hand.'
+  } finally {
+    locating.value = false
+  }
 }
 
 onMounted(() => {
@@ -180,6 +178,7 @@ watch(() => props.active, async (active) => {
 onBeforeUnmount(() => {
   map?.off('click', addPoint)
   map?.remove()
+  map = null
 })
 </script>
 
@@ -205,7 +204,7 @@ onBeforeUnmount(() => {
           <h1 id="map-title">Choose your fields</h1>
           <p>Outline each field on the map. You can add more than one.</p>
         </div>
-        <button class="secondary-button location-button" type="button" @click="findMyLocation">
+        <button class="secondary-button location-button" type="button" :disabled="locating" @click="findMyLocation(true)">
           <span aria-hidden="true">◎</span> Use my location
         </button>
       </div>
