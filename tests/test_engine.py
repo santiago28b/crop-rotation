@@ -174,36 +174,56 @@ def test_no_key_keeps_crop_table_and_home_region_has_no_warning():
     assert len(r["options"]) >= 3
 
 
-def _fake_swe(current_by_station, median_level):
-    """Fake SNOTEL: every past year holds `median_level` in, this year the given value."""
-    def fetch(triplet, begin, end):
-        from datetime import timedelta
-        out, d = {}, begin
-        while d <= end:
-            if d.year >= 2026 and d.month >= 11:
-                out[d.isoformat()] = current_by_station[triplet]
-            else:
-                out[d.isoformat()] = median_level
-            d += timedelta(days=1)
-        return out
+def _fake_swe(current_by_station, median):
+    """Fake SNOTEL: each station has today's value and the same median."""
+    def fetch(triplets, begin, end):
+        return {t: {end.isoformat(): (current_by_station[t], median)}
+                for t in triplets if t in current_by_station}
     return fetch
 
 
 def test_snowpack_low_normal_and_too_early():
-    import tempfile
     from datetime import date
     from app.snowpack import BOISE_STATIONS, snowpack_status
-    today = date(2026, 11, 14)
+    feb = date(2027, 2, 14)
     ids = list(BOISE_STATIONS)
 
-    low = snowpack_status(today, _fake_swe({t: 3.0 for t in ids}, 5.0), Path(tempfile.mkdtemp()))
+    low = snowpack_status(feb, _fake_swe({t: 3.0 for t in ids}, 5.0))
     assert low["level"] == "low" and low["basin_pct_of_median"] == 60
 
-    high = snowpack_status(today, _fake_swe({t: 7.0 for t in ids}, 5.0), Path(tempfile.mkdtemp()))
+    high = snowpack_status(feb, _fake_swe({t: 7.0 for t in ids}, 5.0))
     assert high["level"] == "high"
 
-    early = snowpack_status(today, _fake_swe({t: 0.0 for t in ids}, 0.1), Path(tempfile.mkdtemp()))
-    assert early["level"] == "normal" and "Too early" in early["note"]
+    tiny = snowpack_status(feb, _fake_swe({t: 0.0 for t in ids}, 0.1))
+    assert tiny["level"] == "normal" and "Too early" in tiny["note"]
+
+
+def test_snowpack_before_january_is_too_early():
+    from datetime import date
+    from app.snowpack import BOISE_STATIONS, snowpack_status
+    nov = snowpack_status(date(2026, 11, 14), _fake_swe({t: 1.0 for t in BOISE_STATIONS}, 5.0))
+    assert nov["level"] == "normal" and "Too early" in nov["note"]
+    assert nov["basin_pct_of_median"] == 20                   # still reported, just not used
+
+
+def test_snowpack_missing_station_is_listed():
+    from datetime import date
+    from app.snowpack import BOISE_STATIONS, snowpack_status
+    ids = list(BOISE_STATIONS)
+    r = snowpack_status(date(2027, 2, 14), _fake_swe({t: 3.0 for t in ids[:3]}, 5.0))
+    assert len(r["stations"]) == 3 and len(r["stations_missing"]) == 1
+    assert "Not read today" in r["note"]
+
+
+def test_snowpack_retries_on_403():
+    from unittest.mock import patch, MagicMock
+    from app import snowpack
+    bad, good = MagicMock(ok=False, status_code=403), MagicMock(ok=True)
+    good.json.return_value = []
+    with patch.object(snowpack.requests, "get", side_effect=[bad, bad, good]) as get, \
+         patch.object(snowpack.time, "sleep"):
+        assert snowpack._get({}) == []
+    assert get.call_count == 3
 
 
 def test_snowpack_auto_in_report():
