@@ -28,7 +28,9 @@ U of I Idaho AgBiz crop budgets, https://www.uidaho.edu/extension/food/idaho-agb
 - Potatoes (Russet Burbank, fumigation), SW Idaho 2019: $3,730.01
 - Peppermint (fumigation), SW Idaho 2013: $2,522.05 — OLD, flagged in csv
 - Onions: OSU Extension, "Cost of onion production in eastern Oregon and
-  Idaho" (2021 season), Idaho field-run no storage: $5,054/acre.
+  Idaho" (2021 season), Idaho field-run WITH storage, no packing:
+  $5,806.76/acre — storage cost included because USDA's price received
+  reflects storage-season sales.
   https://extension.oregonstate.edu/catalog/cost-onion-production-eastern-oregon-idaho
 Years differ by budget (2013-2022, nominal dollars, not inflation-adjusted).
 
