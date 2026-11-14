@@ -1,6 +1,5 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, toRaw, watch } from 'vue'
-import ResourceQuestion from './ResourceQuestion.vue'
 import { getCatalog, getFieldProfile, isHistoryPending, pollFieldHistory } from '../api.js'
 
 const props = defineProps({
@@ -18,10 +17,6 @@ const currentIndex = ref(0)
 const statesByField = new WeakMap()
 const controllers = new Map()
 const fieldStates = ref([])
-
-function normalizeCropId(id) {
-  return id === 'maize' ? 'corn_silage' : id
-}
 
 // The crop list loads on its own, so crops can be picked by hand while (or even if)
 // the satellite lookup is slow or fails.
@@ -48,7 +43,7 @@ function applyHistory(state, history) {
     if (!found) continue
     entry.estimate = { crop_id: found.crop_id || null, crop_label: found.crop_label, confidence: found.confidence }
     if (entry.source === 'farmer') continue // never overwrite what the farmer picked
-    entry.crop_id = normalizeCropId(found.crop_id) || ''
+    entry.crop_id = found.crop_id || ''
     entry.crop_label = found.crop_label
     entry.confidence = found.confidence
     entry.source = 'cdl'
@@ -60,6 +55,10 @@ async function loadField(field, state, signal) {
     const profile = await getFieldProfile(field, { signal })
     state.profile = profile
     state.profileStatus = 'ready'
+    const waterUse = profile.water_use
+    if (waterUse?.looks_irrigated != null && !state.answers.waterTouched && !state.answers.irrigated) {
+      state.answers.irrigated = waterUse.looks_irrigated ? 'yes' : 'no'
+    }
     applyHistory(state, profile.crop_history)
     if (isHistoryPending(profile.crop_history)) {
       const last = await pollFieldHistory(field, { signal, onUpdate: (history) => applyHistory(state, history) })
@@ -76,10 +75,10 @@ async function loadField(field, state, signal) {
 function createFieldState(field) {
   const state = reactive({
     answers: {
-      waterSources: [],
-      waterSourcesOther: '',
-      irrigationMethods: [],
-      irrigationOther: '',
+      irrigated: '',            // '' = not sure, 'yes', 'no' (prefilled from satellite water use)
+      irrigationMethod: '',     // 'drip' | 'sprinkler' | 'surface'
+      waterSource: '',          // 'surface' (canal/river) | 'groundwater' (well) | 'mixed'
+      waterTouched: false,      // farmer answered: never overwrite with a late prefill
       cropHistory: years.map((year) => ({
         year, crop_id: '', crop_label: 'Unknown', confidence: null, source: 'unknown', estimate: null,
       })),
@@ -199,8 +198,7 @@ function showPreviousField() {
 }
 
 function updateCropEntry(entry) {
-  const crop = cropOptions.value.find((option) => option.id === normalizeCropId(entry.crop_id))
-  entry.crop_id = normalizeCropId(entry.crop_id)
+  const crop = cropOptions.value.find((option) => option.id === entry.crop_id)
   entry.crop_label = crop?.name || 'Unknown'
   entry.source = 'farmer'
   entry.confidence = null
@@ -284,23 +282,29 @@ function continueWithConfirmedHistory() {
 
         <section class="field-info-card" aria-labelledby="water-title">
           <h2 id="water-title"><span class="section-icon" aria-hidden="true">💧</span>Water for this field</h2>
-          <p class="field-card-help">Choose what is available at this field.</p>
-          <ResourceQuestion
-            v-model="currentAnswers.waterSources"
-            v-model:other-detail="currentAnswers.waterSourcesOther"
-            id="field-water-sources"
-            label="What are this field’s primary water sources?"
-            :options="['Well', 'River / Stream', 'Pond / Lake', 'Municipal water', 'Rainwater', 'Other', 'No reliable water source']"
-            exclusive-option="No reliable water source"
-          />
-          <ResourceQuestion
-            v-model="currentAnswers.irrigationMethods"
-            v-model:other-detail="currentAnswers.irrigationOther"
-            id="field-irrigation-methods"
-            label="What irrigation methods are available for this field?"
-            :options="['Drip irrigation', 'Sprinkler', 'Flood irrigation', 'Other', 'None']"
-            exclusive-option="None"
-          />
+          <p v-if="currentProfile?.water_use?.available" class="field-card-help">🛰️ {{ currentProfile.water_use.note }}</p>
+          <label class="resource-question-label" :for="`irrigated-${fieldNumber}`">Is this field irrigated?</label>
+          <select :id="`irrigated-${fieldNumber}`" v-model="currentAnswers.irrigated" @change="currentAnswers.waterTouched = true">
+            <option value="">Not sure</option>
+            <option value="yes">Yes</option>
+            <option value="no">No — rain only</option>
+          </select>
+          <template v-if="currentAnswers.irrigated === 'yes'">
+            <label class="resource-question-label" :for="`irrigation-method-${fieldNumber}`">How is it irrigated?</label>
+            <select :id="`irrigation-method-${fieldNumber}`" v-model="currentAnswers.irrigationMethod" @change="currentAnswers.waterTouched = true">
+              <option value="" disabled>Choose a method</option>
+              <option value="drip">Drip</option>
+              <option value="sprinkler">Sprinkler or pivot</option>
+              <option value="surface">Flood or furrow</option>
+            </select>
+            <label class="resource-question-label" :for="`water-source-${fieldNumber}`">Where does the water come from?</label>
+            <select :id="`water-source-${fieldNumber}`" v-model="currentAnswers.waterSource" @change="currentAnswers.waterTouched = true">
+              <option value="" disabled>Choose a source</option>
+              <option value="surface">Canal or river</option>
+              <option value="groundwater">Well</option>
+              <option value="mixed">Both</option>
+            </select>
+          </template>
         </section>
 
         <section class="field-info-card" aria-labelledby="history-title">

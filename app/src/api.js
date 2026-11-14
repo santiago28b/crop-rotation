@@ -81,7 +81,7 @@ export function getInsights(field, history, resources, priorities) {
   })
 }
 
-export function getProfitReport(field, currentCrop, waterSupply, areaCrops) {
+export function getProfitReport(field, currentCrop, waterSupply, areaCrops, irrigationMethod, waterSource) {
   return request('/report', {
     method: 'POST',
     body: JSON.stringify({
@@ -89,6 +89,8 @@ export function getProfitReport(field, currentCrop, waterSupply, areaCrops) {
       current_crop: currentCrop,
       water_supply: waterSupply,
       area_crops: areaCrops?.length ? areaCrops : undefined,
+      irrigation_method: irrigationMethod || undefined,
+      water_source: waterSource || undefined,
     }),
   })
 }
