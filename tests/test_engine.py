@@ -17,7 +17,7 @@ IDAHO = {"state": "ID", "state_name": "Idaho", "county": "Canyon", "county_fips"
 
 def report(**kw):
     args = dict(field=FIELD, current_crop="corn_silage", water_supply="full",
-                crops=CROPS, climate=DEFAULT_CLIMATE, location=IDAHO)
+                crops=CROPS, climate=DEFAULT_CLIMATE, location=IDAHO, snowpack="normal")
     args.update(kw)
     return build_report(**args)
 
@@ -172,6 +172,54 @@ def test_no_key_keeps_crop_table_and_home_region_has_no_warning():
     assert r["region_warning"] is None
     assert any("NASS_API_KEY is not set" in s for s in r["data_sources"])
     assert len(r["options"]) >= 3
+
+
+def _fake_swe(current_by_station, median_level):
+    """Fake SNOTEL: every past year holds `median_level` in, this year the given value."""
+    def fetch(triplet, begin, end):
+        from datetime import timedelta
+        out, d = {}, begin
+        while d <= end:
+            if d.year >= 2026 and d.month >= 11:
+                out[d.isoformat()] = current_by_station[triplet]
+            else:
+                out[d.isoformat()] = median_level
+            d += timedelta(days=1)
+        return out
+    return fetch
+
+
+def test_snowpack_low_normal_and_too_early():
+    import tempfile
+    from datetime import date
+    from app.snowpack import BOISE_STATIONS, snowpack_status
+    today = date(2026, 11, 14)
+    ids = list(BOISE_STATIONS)
+
+    low = snowpack_status(today, _fake_swe({t: 3.0 for t in ids}, 5.0), Path(tempfile.mkdtemp()))
+    assert low["level"] == "low" and low["basin_pct_of_median"] == 60
+
+    high = snowpack_status(today, _fake_swe({t: 7.0 for t in ids}, 5.0), Path(tempfile.mkdtemp()))
+    assert high["level"] == "high"
+
+    early = snowpack_status(today, _fake_swe({t: 0.0 for t in ids}, 0.1), Path(tempfile.mkdtemp()))
+    assert early["level"] == "normal" and "Too early" in early["note"]
+
+
+def test_snowpack_auto_in_report():
+    from unittest.mock import patch
+    from app import engine
+    fake = {"level": "low", "basin_pct_of_median": 60, "as_of": "2026-11-14",
+            "note": "x", "source": "NRCS SNOTEL"}
+    with patch.object(engine, "snowpack_status", lambda: dict(fake)):
+        r = build_report(FIELD, "corn_silage", "full", crops=CROPS, climate=DEFAULT_CLIMATE,
+                         location=IDAHO, snowpack="auto")
+    assert r["snowpack"]["level"] == "low"
+    assert r["year_odds"]["dry"] > 0.5                        # low snow shifts toward dry
+    with patch.object(engine, "snowpack_status", side_effect=ConnectionError()):
+        r = build_report(FIELD, "corn_silage", "full", crops=CROPS, climate=DEFAULT_CLIMATE,
+                         location=IDAHO, snowpack="auto")
+    assert r["snowpack"]["level"] == "normal" and "unavailable" in r["snowpack"]["source"]
 
 
 if __name__ == "__main__":
