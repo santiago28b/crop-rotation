@@ -55,3 +55,27 @@ python scripts/fetch_openet.py
 ```
 
 Output: yearly water / heat / frost / soil-moisture facts in `data/processed/`, with each year labeled dry, normal or wet.
+
+## Recommendation engine
+
+```
+python -m app.engine            # demo report for a field near Nampa
+python tests/test_engine.py     # tests
+uvicorn app.main:app --reload   # API at http://localhost:8000/docs
+```
+
+`POST /report`
+
+```json
+{
+  "field": { "type": "Polygon", "coordinates": [[[-116.565, 43.58], [-116.559, 43.58], [-116.559, 43.585], [-116.565, 43.585]]] },
+  "current_crop": "corn_silage",
+  "water_supply": "limited",
+  "area_crops": [{ "crop": "alfalfa", "share": 0.35 }],
+  "snowpack": "normal"
+}
+```
+
+Returns `options` (current crop first, then ranked), each with expected and dry-year profit per acre and for the field, water needed vs. available per year type, `why` and `risks`.
+
+**Placeholders to replace:** every number in `data/crops.csv` (marked `source = placeholder`) and the water assumptions at the top of `app/engine.py`. If `data/processed/` has no NASA POWER summary, the engine uses placeholder climate numbers and says so in the report.
