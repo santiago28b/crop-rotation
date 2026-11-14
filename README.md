@@ -47,4 +47,11 @@ python scripts/fetch_power.py                 # downloads 2001-2025 daily NASA P
 python scripts/summarize_power.py data/raw/power_nampa_2001_2025.csv
 ```
 
+OpenET (crop water use) — needs a free API key from https://account.etdata.org:
+
+```
+export OPENET_API_KEY=your_key
+python scripts/fetch_openet.py
+```
+
 Output: yearly water / heat / frost / soil-moisture facts in `data/processed/`, with each year labeled dry, normal or wet.
