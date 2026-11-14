@@ -193,7 +193,7 @@ def _evaluate(crop: Crop, ctx: _Ctx, soil, req: FieldInsightsRequest, planting_y
     # ---- 4. water ----
     etc, peff, irr = crop_water(ctx.eto_clim, ctx.p_clim, best, crop, cycle)
     rain_prob = rainfed_success_prob(ctx.recent, best, cycle, crop.rain_mm.abs_min)
-    allot = req.resources.irrigation.seasonal_allotment_mm
+    allot = _allotment_mm(req.resources.irrigation)
     if irrigated:
         if allot is None or allot >= irr:
             deficit = "low"
@@ -262,6 +262,21 @@ def _evaluate(crop: Crop, ctx: _Ctx, soil, req: FieldInsightsRequest, planting_y
         equipment=Equipment(harvester_class=crop.harvester_class, planter_class=crop.planter_class, farmer_has_harvester=has),
         score=0.0, evidence=evidence, gaps=gaps,
     )
+
+
+def _allotment_mm(irrigation) -> float | None:
+    """Water the crop can actually get from irrigation in a normal year, mm.
+
+    A farmer-given allotment wins. Otherwise, if the UI passed the same full/limited/short
+    answer it sends to POST /report, use that engine's assumptions (allotment x supply level x
+    application efficiency) so the agronomy and money views share one water budget.
+    """
+    if irrigation.seasonal_allotment_mm is not None or irrigation.supply is None or irrigation.type == "none":
+        return irrigation.seasonal_allotment_mm
+    from app.engine import ASSUMPTIONS, MM_PER_IN
+    method = "sprinkler" if irrigation.type == "pivot" else irrigation.type
+    return round(ASSUMPTIONS["full_allotment_in"] * ASSUMPTIONS["supply_level"][irrigation.supply]
+                 * ASSUMPTIONS["efficiency_by_method"][method] * MM_PER_IN)
 
 
 def _harvest_sdoys(ctx: _Ctx, plant_sdoy: int, crop: Crop, cycle: int) -> list[int]:

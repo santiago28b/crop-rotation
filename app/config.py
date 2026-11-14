@@ -24,6 +24,8 @@ RECENT_YEARS = (2013, 2025)      # "how it is now" -> the difference is the clim
 CDL_FIRST_YEAR = 2016            # CropScape covers CONUS from 2008, but 10 years is enough for rotation logic and 2x faster
 CDL_LAST_YEAR = 2025
 CDL_SAMPLE_POINTS = 5            # pixels sampled per field per year (CropScape is slow; 5 x 10 yrs = 50 requests)
+OPENET_TIME_BUDGET_S = 20        # profile does not wait longer than this for measured field water use
+IRRIGATED_ET_MARGIN_MM = 150     # field ET this far above growing-season rain = irrigated (soil storage can't supply that)
 CDL_TIME_BUDGET_S = 45           # profile returns after this long; the fetch keeps filling the cache in the background
 
 FROST_RISK = 0.10                # "safe" planting date = 10 % chance of a later killing frost

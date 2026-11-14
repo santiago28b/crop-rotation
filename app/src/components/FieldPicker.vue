@@ -33,7 +33,7 @@ function drawBoundary() {
         radius,
         color: '#ffffff',
         weight: 2,
-        fillColor: '#285a3c',
+        fillColor: '#8a5a2b',
         fillOpacity: 1,
         bubblingMouseEvents: false,
       }).addTo(pointLayer)
@@ -42,9 +42,9 @@ function drawBoundary() {
 
   for (const field of fields.value) {
     L.polygon(field.boundary, {
-      color: '#285a3c',
+      color: '#8a5a2b',
       weight: 3,
-      fillColor: '#6c9b6c',
+      fillColor: '#e0a84a',
       fillOpacity: 0.2,
       bubblingMouseEvents: false,
     }).addTo(boundaryLayer)
@@ -56,9 +56,9 @@ function drawBoundary() {
   if (points.value.length >= 2) {
     const shape = points.value.length >= 3 ? L.polygon : L.polyline
     shape(points.value, {
-      color: '#285a3c',
+      color: '#8a5a2b',
       weight: 3,
-      fillColor: '#6c9b6c',
+      fillColor: '#e0a84a',
       fillOpacity: 0.3,
       bubblingMouseEvents: false,
     }).addTo(boundaryLayer)
@@ -185,15 +185,16 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="page-shell">
-    <header class="brand" aria-label="Field Shift">
+    <header class="brand" aria-label="Patato">
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 40 40" fill="none">
-          <path d="M7 31c6.5-1.2 12.7-4 18.2-8.1C29.3 20.1 33 15 34 9" />
-          <path d="M7 24.5c5.1-1 9.7-3.2 13.8-6.2C24.6 15.6 27.3 12 29 7" />
-          <path d="M7 17.5c3.5-.8 6.7-2.2 9.5-4.2 2-1.4 3.7-3 5.1-4.8" />
+          <path d="M8 23c0-8 6-13.5 14.5-13 7 .5 12 5 12 11.5 0 7.5-6.5 12.5-15 12.5C13 34 8 29.5 8 23Z" />
+          <path d="M15 21.5q2-2 4 0" />
+          <path d="M24 18.5q2-2 4 0" />
+          <path d="M21.5 27q2-2 4 0" />
         </svg>
       </span>
-      <span>Field Shift</span>
+      <span>Patato</span>
     </header>
 
     <section class="map-page" aria-labelledby="map-title">

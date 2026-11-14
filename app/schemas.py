@@ -110,11 +110,23 @@ class CropHistory(BaseModel):
     note: str
 
 
+class FieldWaterUse(BaseModel):
+    """Satellite-measured water use of the field (OpenET), used to prefill 'is this field irrigated?'."""
+    available: bool
+    season_et_mm: float | None = Field(None, description="mean Apr-Oct evapotranspiration measured at the field")
+    season_rain_mm: float | None = Field(None, description="mean growing-season rain (NASA POWER) it is compared with")
+    looks_irrigated: bool | None = Field(None, description="true when the field used far more water than rain supplied; null = unknown")
+    years: str | None = None
+    source: str
+    note: str
+
+
 class FieldProfile(BaseModel):
     field: FieldInfo
     soil: SoilProfile
     climate: ClimateProfile
     crop_history: CropHistory
+    water_use: FieldWaterUse | None = None
     sources: list[str]
     gaps: list[str]
 
@@ -135,6 +147,9 @@ class FieldProfileRequest(BaseModel):
 class Irrigation(BaseModel):
     type: Literal["none", "surface", "sprinkler", "pivot", "drip"] = "none"
     seasonal_allotment_mm: float | None = Field(None, description="water the farmer can apply per season, mm depth; null = unlimited/unknown")
+    supply: Literal["full", "limited", "short"] | None = Field(
+        None, description="same scale as POST /report water_supply. When seasonal_allotment_mm is null, the allotment "
+                          "is derived from the /report engine's assumptions so both engines use one water budget")
 
 
 class Resources(BaseModel):

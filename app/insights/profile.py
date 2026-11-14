@@ -6,9 +6,9 @@ import asyncio
 import logging
 
 from app import fieldgeo as geo
-from app.config import CDL_SAMPLE_POINTS, CDL_TIME_BUDGET_S
+from app.config import CDL_SAMPLE_POINTS, CDL_TIME_BUDGET_S, IRRIGATED_ET_MARGIN_MM, OPENET_TIME_BUDGET_S
 from app.insights import climate
-from app.schemas import CropHistory, FieldInfo, FieldProfile, FieldProfileRequest, SoilProfile
+from app.schemas import CropHistory, FieldInfo, FieldProfile, FieldProfileRequest, FieldWaterUse, SoilProfile
 from app.sources import cdl, power, soilgrids, ssurgo
 
 log = logging.getLogger(__name__)
@@ -29,6 +29,32 @@ async def crop_history(poly, budget_s: float | None = CDL_TIME_BUDGET_S) -> Crop
         log.warning("CDL failed: %s", e)
         return CropHistory(available=False, status="unavailable", source="USDA CDL (CropScape)", years=[],
                            note=f"CropScape did not respond ({type(e).__name__}); please enter the crop history manually.")
+
+
+async def measured_water_use(lat: float, lon: float) -> dict:
+    """OpenET season ET via the /report engine's lookup (same cache, same key), under a time budget."""
+    from app.engine import resolve_field_water      # the economics engine owns the OpenET client
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(resolve_field_water, lat, lon), OPENET_TIME_BUDGET_S)
+    except asyncio.TimeoutError:
+        return {"season_et_in": None, "source": "OpenET: not used (too slow to answer)",
+                "note": "No measured field water use."}
+
+
+def classify_water_use(raw: dict, season_rain_mm: float) -> FieldWaterUse:
+    """Did the field use far more water than the rain supplied? Then it was irrigated."""
+    et_in = raw.get("season_et_in")
+    if et_in is None:
+        return FieldWaterUse(available=False, source=raw.get("source", "OpenET: not used"),
+                             note="No satellite water-use measurement for this field, so we can't tell whether it is irrigated.")
+    et_mm = round(et_in * 25.4)
+    irrigated = et_mm > season_rain_mm + IRRIGATED_ET_MARGIN_MM
+    compare = f"about {et_mm} mm of water per growing season ({raw.get('years')}), against about {season_rain_mm:.0f} mm of rain"
+    note = (f"Satellites measured this field using {compare}: far more than rain supplies, so it looks irrigated."
+            if irrigated else
+            f"Satellites measured this field using {compare}: close to what rain supplies, so it does not look irrigated.")
+    return FieldWaterUse(available=True, season_et_mm=et_mm, season_rain_mm=round(season_rain_mm),
+                         looks_irrigated=irrigated, years=raw.get("years"), source=raw["source"], note=note)
 
 
 async def build_history(req: FieldProfileRequest) -> CropHistory:
@@ -54,18 +80,22 @@ async def build_profile(req: FieldProfileRequest) -> FieldProfile:
                 gaps.append("SSURGO unavailable; used SoilGrids instead")
         return await soilgrids.fetch_soil(lat, lon)
 
-    (df, elevation), soil, history = await asyncio.gather(
-        power.fetch_daily(lat, lon), soil_task(), crop_history(poly))
+    (df, elevation), soil, history, raw_water = await asyncio.gather(
+        power.fetch_daily(lat, lon), soil_task(), crop_history(poly), measured_water_use(lat, lon))
 
     pdf = climate.prepare(df, lat, elevation)
     clim = climate.climate_profile(pdf, lat)
 
+    water_use = classify_water_use(raw_water, clim.recent.precip_season_mm)
     sources += [clim.source, soil.source]
+    if water_use.available:
+        sources.append(water_use.source)
     if history.source:
         sources.append(history.source)
     gaps += [
         "NASA POWER is a ~50 km grid: temperatures/rain are regional, not field-specific (lapse-rate downscaling planned)",
-        "No field-level water-use (ET) yet: OpenET (US) / MODIS MOD16 (global) pending",
+        *([] if water_use.available else
+          ["No field-level water use (ET) for this field: OpenET needs OPENET_API_KEY and covers the western US"]),
         "No groundwater trend yet: GRACE-FO lookup pending",
     ]
     if not history.available:
@@ -75,5 +105,5 @@ async def build_profile(req: FieldProfileRequest) -> FieldProfile:
         field=FieldInfo(name=req.name, centroid_lat=round(lat, 5), centroid_lon=round(lon, 5),
                         area_ha=round(geo.area_ha(poly), 2), elevation_m=elevation,
                         hemisphere=geo.hemisphere(lat), in_conus=conus),
-        soil=soil, climate=clim, crop_history=history, sources=sources, gaps=gaps,
+        soil=soil, climate=clim, crop_history=history, water_use=water_use, sources=sources, gaps=gaps,
     )
