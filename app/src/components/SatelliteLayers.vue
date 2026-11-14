@@ -5,7 +5,7 @@
 // The slider walks the 2025 growing season (April-October) so a farmer can
 // watch the valley green up and dry down. MODIS is 250 m, so tiles soften
 // when you zoom to a single field - the pattern is the point, not the pixels.
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
 
 const props = defineProps({ map: { type: Object, default: null } })
@@ -28,6 +28,15 @@ const dates = (() => {
   }
   return out
 })()
+
+const panel = ref(null)
+onMounted(() => {
+  // the panel floats on the map: keep its clicks/drags from drawing field points
+  if (panel.value) {
+    L.DomEvent.disableClickPropagation(panel.value)
+    L.DomEvent.disableScrollPropagation(panel.value)
+  }
+})
 
 const mode = ref('off')
 const index = ref(Math.floor(dates.length / 2)) // start mid-season (July)
@@ -71,7 +80,7 @@ function setMode(next) {
 </script>
 
 <template>
-  <div class="sat-panel" aria-label="NASA satellite layers">
+  <div ref="panel" class="sat-panel" aria-label="NASA satellite layers">
     <div class="sat-buttons">
       <span class="sat-title">🛰️ NASA layers</span>
       <button type="button" :class="{ on: mode === 'photo' }" @click="setMode('photo')">Satellite photo</button>
@@ -90,11 +99,16 @@ function setMode(next) {
 
 <style scoped>
 .sat-panel {
-  margin-top: 0.5rem;
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 1100;            /* above Leaflet panes and controls */
+  max-width: min(420px, calc(100% - 20px));
   padding: 0.6rem 0.75rem;
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
