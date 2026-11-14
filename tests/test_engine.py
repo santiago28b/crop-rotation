@@ -120,6 +120,83 @@ def test_irrigation_method_and_water_source():
             pass
 
 
+def test_top5_is_ranked_by_money():
+    r = report()
+    shown = [o["crop"] for o in r["options"][1:]]
+    # the 4 shown are the 4 best scores among everything that fits
+    everyone = report(area_crops=None)
+    scores = sorted((o["score"] for o in everyone["options"][1:]), reverse=True)
+    assert [o["score"] for o in r["options"][1:]] == scores
+    assert r["options"][1]["tag"] == "best_overall" and len(shown) == 4
+
+
+def test_huge_outline_is_rejected_not_hung():
+    # a "field" traced while zoomed out to a whole region: fast 400, not a frozen server
+    import time as _t
+    from app import fieldgeo
+    big = {"type": "Polygon", "coordinates": [[[-104, 40], [-96, 40], [-96, 43], [-104, 43], [-104, 40]]]}
+    for call in (lambda: build_report(big, "corn_silage", "full", crops=CROPS, climate=DEFAULT_CLIMATE,
+                                      location=IDAHO, snowpack="normal"),
+                 lambda: fieldgeo.field_polygon(big)):
+        try:
+            call()
+        except ValueError as e:
+            assert "too large" in str(e)
+        else:
+            raise AssertionError("expected ValueError for a region-sized field")
+    # and sampling a big-but-legal field is instant (it used to grid at 40 m)
+    from shapely.geometry import shape
+    ok = shape({"type": "Polygon", "coordinates": [[[-116.8, 43.5], [-116.7, 43.5], [-116.7, 43.58], [-116.8, 43.58], [-116.8, 43.5]]]})
+    t0 = _t.time()
+    pts = fieldgeo.sample_points(ok, max_points=5)
+    assert 1 <= len(pts) <= 6 and _t.time() - t0 < 1.0
+
+
+def test_local_water_needs_only_outside_home_region():
+    from app.engine import apply_local_water_needs
+    out = apply_local_water_needs({k: dict(v) for k, v in CROPS.items()},
+                                  {"alfalfa": 30.04, "corn_silage": 22.0, "quinoa": 9}, skip="corn_silage")
+    assert out["alfalfa"]["water_need_in"] == 30.0
+    assert "FAO-56" in out["alfalfa"]["data_notes"]["water_need"]
+    assert out["corn_silage"]["water_need_in"] == CROPS["corn_silage"]["water_need_in"]   # measured wins
+    nebraska = {"type": "Polygon", "coordinates": [[[-99.49, 42.28], [-99.48, 42.28], [-99.48, 42.29], [-99.49, 42.29], [-99.49, 42.28]]]}
+    there = build_report(nebraska, "corn_silage", "full", crops=CROPS, climate=DEFAULT_CLIMATE,
+                         location={"state": "NE", "state_name": "Nebraska", "county": "Rock", "county_fips": "31149"},
+                         snowpack="normal", crop_water_need_in={"alfalfa": 30.0})
+    home = report(crop_water_need_in={"alfalfa": 30.0})
+    need = lambda r: next(o for o in r["options"] + [] if o["crop"] == "alfalfa")["by_year_type"]["normal"]["water_needed_in"] \
+        if any(o["crop"] == "alfalfa" for o in r["options"]) else None
+    assert "Local here" in there["region_warning"] and home["region_warning"] is None
+    if need(there) is not None:
+        assert need(there) == 30.0
+    if need(home) is not None:
+        assert need(home) == CROPS["alfalfa"]["water_need_in"]                              # Idaho keeps AgriMet
+
+
+def test_out_of_region_drops_crops_the_state_does_not_report():
+    from app import engine
+    nebraska = {"type": "Polygon", "coordinates": [[[-99.49, 42.28], [-99.48, 42.28], [-99.48, 42.29], [-99.49, 42.29], [-99.49, 42.28]]]}
+    ne = {"state": "NE", "state_name": "Nebraska", "county": "Rock", "county_fips": "31149"}
+
+    def fake_market(crops, location):          # USDA has NE numbers for everything except onions and mint
+        out = {}
+        for name, row in crops.items():
+            row = dict(row)
+            src = "crop table (data/crops.csv)" if name in ("onions", "mint") else "USDA NASS NE average 2020-2025"
+            row["data_notes"] = {"yield": src, "price": src, "cost": "crop table (data/crops.csv)"}
+            out[name] = row
+        return out, "Yields and prices: USDA NASS QuickStats for NE (14 values found); crop table for the rest"
+
+    with patch.object(engine, "with_local_market", fake_market), \
+         patch.object(engine, "resolve_field_water", lambda lat, lon: {"season_et_in": None, "source": "x", "note": "x"}):
+        r = build_report(nebraska, "corn_silage", "full", climate=DEFAULT_CLIMATE, location=ne, snowpack="normal")
+    shown = {o["crop"] for o in r["options"]}
+    assert "onions" not in shown and "mint" not in shown
+    assert {e["crop"] for e in r["excluded"]} >= {"onions", "mint"}
+    assert any("not grown commercially" in e["reasons"][0] for e in r["excluded"])
+    assert len(r["options"]) >= 3
+
+
 def test_bad_input():
     for kw in ({"current_crop": "bananas"}, {"water_supply": "lots"}):
         try:
@@ -323,10 +400,14 @@ def test_snowpack_auto_in_report():
     from app import engine
     fake = {"level": "low", "basin_pct_of_median": 60, "as_of": "2026-11-14",
             "note": "x", "source": "NRCS SNOTEL"}
+    engine._SNOW_CACHE.clear()                                # the 1-hour cache must not leak between tests
     with patch.object(engine, "snowpack_status", lambda: dict(fake)):
         r = build_report(FIELD, "corn_silage", "full", crops=CROPS, climate=DEFAULT_CLIMATE,
                          location=IDAHO, snowpack="auto")
-    assert r["snowpack"]["level"] == "low"
+        again = build_report(FIELD, "corn_silage", "full", crops=CROPS, climate=DEFAULT_CLIMATE,
+                             location=IDAHO, snowpack="auto")
+    assert r["snowpack"]["level"] == "low" and again["snowpack"]["level"] == "low"
+    engine._SNOW_CACHE.clear()
     assert r["year_odds"]["dry"] > 0.5                        # low snow shifts toward dry
     with patch.object(engine, "snowpack_status", side_effect=ConnectionError()):
         r = build_report(FIELD, "corn_silage", "full", crops=CROPS, climate=DEFAULT_CLIMATE,

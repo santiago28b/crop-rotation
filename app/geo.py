@@ -4,6 +4,7 @@ import math
 
 EARTH_RADIUS_M = 6_371_000
 SQ_M_PER_ACRE = 4046.8564
+MAX_FIELD_ACRES = 25_000      # bigger than any single field; see app/fieldgeo.py MAX_FIELD_HA
 
 
 def _outer_ring(geojson: dict) -> list:
@@ -38,4 +39,7 @@ def field_center_and_acres(geojson) -> tuple[float, float, float]:
     for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1]):
         area += x1 * y2 - x2 * y1
     acres = abs(area) / 2 / SQ_M_PER_ACRE
+    if acres > MAX_FIELD_ACRES:
+        raise ValueError(f"That outline covers about {acres:,.0f} acres, which is too large for one "
+                         "field. Zoom in on the map and outline a single field.")
     return round(lat0, 5), round(lon0, 5), round(acres, 1)

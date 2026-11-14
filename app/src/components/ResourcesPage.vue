@@ -14,7 +14,20 @@ const saved = ref(false)
 const sending = ref(false)
 const results = ref([])
 const requestError = ref('')
-const reportCrops = ref([])
+// The crops the money comparison knows. Built in, so the "what is growing now?" list
+// works instantly and even when the API is slow or down; refreshed from GET /crops.
+const BUILT_IN_CROPS = [
+  { crop: 'alfalfa', label: 'Alfalfa hay' },
+  { crop: 'corn_silage', label: 'Corn silage' },
+  { crop: 'winter_wheat', label: 'Winter wheat' },
+  { crop: 'spring_barley', label: 'Spring barley' },
+  { crop: 'sugar_beets', label: 'Sugar beets' },
+  { crop: 'onions', label: 'Onions' },
+  { crop: 'dry_beans', label: 'Dry beans' },
+  { crop: 'potatoes', label: 'Potatoes' },
+  { crop: 'mint', label: 'Mint (oil)' },
+]
+const reportCrops = ref(BUILT_IN_CROPS)
 const currentCrops = ref([])
 const waterSupplies = ref([])
 const priorities = reactive({ water: 0.5, soil_health: 0.5, income: 0.5, low_risk: 0.5 })
@@ -31,16 +44,16 @@ function initialCrop(answer) {
   return reportCropId(known?.crop_id) || ''
 }
 
-watch(() => props.fields, async (fields) => {
-  try {
-    reportCrops.value = await getReportCrops()
-  } catch (error) {
-    requestError.value = `Could not load the profit comparison crop list: ${error.message}`
-  }
+watch(() => props.fields, (fields) => {
   currentCrops.value = fields.map((_, index) => initialCrop(props.fieldAnswers[index]))
   waterSupplies.value = fields.map(() => 'limited')
   results.value = fields.map(() => null)
 }, { immediate: true })
+
+// Refresh the list in the background; the built-in one is already usable.
+getReportCrops().then((crops) => {
+  if (Array.isArray(crops) && crops.length) reportCrops.value = crops
+}).catch(() => {})
 
 // Only question either engine actually uses: what can you harvest with?
 const HARVESTER_CLASSES = {
@@ -111,6 +124,11 @@ async function saveResources() {
         .map((crop) => ({ crop }))
     }
 
+    // Water needs computed for this location (FAO-56); /report uses them outside SW Idaho
+    const waterNeeds = Object.fromEntries((insights?.candidates || [])
+      .filter((candidate) => candidate.water?.crop_need_mm > 0)
+      .map((candidate) => [reportCropId(candidate.crop_id), Math.round(candidate.water.crop_need_mm / 25.4 * 10) / 10]))
+
     let report = null
     let reportError = ''
     if (current) {
@@ -120,6 +138,7 @@ async function saveResources() {
           answer.irrigated === 'yes' ? (answer.irrigationMethod || 'sprinkler')
             : answer.irrigated === 'no' ? 'none' : undefined,
           answer.irrigated === 'yes' ? (answer.waterSource || 'surface') : undefined,
+          waterNeeds,
         )
       } catch (error) {
         reportError = error.message || 'The profit comparison failed.'
@@ -173,7 +192,7 @@ function cropName(id) {
         <section v-for="(field, index) in fields" :key="`comparison-${index}`" class="resource-section comparison-inputs">
           <h2>{{ field.name || `Field ${index + 1}` }}</h2>
           <label class="resource-question-label" :for="`current-crop-${index}`">What crop is growing here now?</label>
-          <select :id="`current-crop-${index}`" v-model="currentCrops[index]">
+          <select :id="`current-crop-${index}`" v-model="currentCrops[index]" required>
             <option value="" disabled>Choose a crop</option>
             <option v-for="crop in reportCrops" :key="crop.crop" :value="crop.crop">{{ crop.label }}</option>
           </select>
