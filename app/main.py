@@ -32,6 +32,9 @@ class ReportRequest(BaseModel):
     irrigation_method: Literal["none", "surface", "sprinkler", "drip"] = "sprinkler"
     # Where the water comes from -> how hard a dry year cuts deliveries
     water_source: Literal["surface", "groundwater", "mixed"] = "surface"
+    # Optional {crop id: inches}: water needs computed for this location by the agronomy
+    # engine (FAO-56). Used only outside southwest Idaho, where the table doesn't apply.
+    crop_water_need_in: dict[str, float] | None = None
 
 
 @app.get("/health")
@@ -56,6 +59,7 @@ def report(req: ReportRequest):
             snowpack=req.snowpack,
             irrigation_method=req.irrigation_method,
             water_source=req.water_source,
+            crop_water_need_in=req.crop_water_need_in,
         )
     except (ValueError, KeyError) as e:
         raise HTTPException(status_code=400, detail=str(e))

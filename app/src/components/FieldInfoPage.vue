@@ -189,7 +189,19 @@ const formattedAcres = computed(() => new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 2,
 }).format(acres.value))
 
+const waterProblem = ref('')
+
+function waterIncomplete(state) {
+  const a = state?.answers
+  return a?.irrigated === 'yes' && (!a.irrigationMethod || !a.waterSource)
+}
+
 function showNextField() {
+  if (waterIncomplete(currentState.value)) {
+    waterProblem.value = 'Please choose how this field is irrigated and where the water comes from.'
+    return
+  }
+  waterProblem.value = ''
   if (currentIndex.value < props.fields.length - 1) currentIndex.value += 1
 }
 
@@ -205,6 +217,13 @@ function updateCropEntry(entry) {
 }
 
 function continueWithConfirmedHistory() {
+  const missing = fieldStates.value.findIndex((state) => waterIncomplete(state))
+  if (missing !== -1) {
+    currentIndex.value = missing
+    waterProblem.value = 'Please choose how this field is irrigated and where the water comes from.'
+    return
+  }
+  waterProblem.value = ''
   emit('continue', {
     profiles: fieldStates.value.map((state) => state.profile),
     answers: fieldStates.value.map(({ answers }) => ({
@@ -294,7 +313,7 @@ function continueWithConfirmedHistory() {
             </div>
             <template v-if="currentAnswers.irrigated === 'yes'">
               <div class="form-field">
-                <label class="resource-question-label" :for="`irrigation-method-${fieldNumber}`">How is it irrigated?</label>
+                <label class="resource-question-label" :for="`irrigation-method-${fieldNumber}`">How is it irrigated? <span aria-hidden="true">*</span></label>
                 <select :id="`irrigation-method-${fieldNumber}`" v-model="currentAnswers.irrigationMethod" class="form-select" @change="currentAnswers.waterTouched = true">
                   <option value="" disabled>Choose a method</option>
                   <option value="drip">Drip</option>
@@ -303,7 +322,7 @@ function continueWithConfirmedHistory() {
                 </select>
               </div>
               <div class="form-field">
-                <label class="resource-question-label" :for="`water-source-${fieldNumber}`">Where does the water come from?</label>
+                <label class="resource-question-label" :for="`water-source-${fieldNumber}`">Where does the water come from? <span aria-hidden="true">*</span></label>
                 <select :id="`water-source-${fieldNumber}`" v-model="currentAnswers.waterSource" class="form-select" @change="currentAnswers.waterTouched = true">
                   <option value="" disabled>Choose a source</option>
                   <option value="surface">Canal or river</option>
@@ -313,6 +332,7 @@ function continueWithConfirmedHistory() {
               </div>
             </template>
           </div>
+          <p v-if="waterProblem" class="api-error" role="alert">{{ waterProblem }}</p>
         </section>
 
         <section class="field-info-card" aria-labelledby="history-title">
