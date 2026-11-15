@@ -7,7 +7,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "excludeFiles": "{app/node_modules/**,app/dist/**,app/src/**,app/public/**,data/raw/**,data/processed/**,data/cache/**,tests/**,docs/**,scripts/**}"
+      "excludeFiles": "{app/node_modules/**,app/dist/**,app/src/**,app/public/**,data/raw/**,data/processed/**,data/cache/**,tests/**,docs/**}"
     }
   },
   "rewrites": [
