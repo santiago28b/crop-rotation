@@ -94,10 +94,10 @@ async def build_profile(req: FieldProfileRequest) -> FieldProfile:
     if history.source:
         sources.append(history.source)
     gaps += [
-        "NASA POWER is a ~50 km grid: temperatures/rain are regional, not field-specific (lapse-rate downscaling planned)",
+        "Weather is for the area around your field (about 30 miles), not your exact field",
         *([] if water_use.available else
           ["No field-level water use (ET) for this field: OpenET needs OPENET_API_KEY and covers the western US"]),
-        "No groundwater trend yet: GRACE-FO lookup pending",
+        "Long-term groundwater trends are not included yet",
     ]
     if not history.available:
         gaps.append("Crop history could not be found automatically, so it comes from your answers")
