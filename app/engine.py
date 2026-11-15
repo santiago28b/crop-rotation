@@ -328,30 +328,107 @@ def check_fit(crop: dict, climate: dict, previous_crop: str | None) -> list[str]
 
 # ----------------------------------------------------------------- the report
 
+# Practical hurdles a ranking can't see. Shown on the card, never hidden.
+WATCH_OUTS = {
+    "onions": ["Usually grown under a packer or buyer contract",
+               "Needs storage and specialized planting and harvest equipment",
+               "High cost per acre, so a bad year puts a lot of money at risk"],
+    "potatoes": ["Usually grown under a processor or buyer contract",
+                 "Needs storage and specialized equipment",
+                 "Wait 3 or more years before potatoes again on the same field"],
+    "sugar_beets": ["Needs a contract (shares) with the sugar company",
+                    "Needs specialized harvest equipment"],
+    "mint": ["Perennial: stays in the field several years",
+             "Needs access to a mint oil distillery"],
+    "alfalfa": ["Perennial: plan on keeping it 3 to 5 years"],
+}
+
+DEFAULT_PRIORITIES = {"water": 0.45, "income": 0.35, "soil": 0.20}
+WATER_POINTS = {"low": 1.0, "medium": 0.5, "high": 0.0}
+INCOME_POINTS = {"much_higher": 1.0, "higher": 0.75, "similar": 0.5, "lower": 0.25, "much_lower": 0.0}
+SOIL_POINTS = {"builds": 1.0, "neutral": 0.5, "hard": 0.0}
+INCOME_TEXT = {"much_higher": "Much higher than now", "higher": "Higher than now",
+               "similar": "About the same as now", "lower": "Lower than now",
+               "much_lower": "Much lower than now"}
+
+
+def water_risk(option: dict) -> str:
+    """How the crop fares with your water in a dry year (strongest data we have)."""
+    met = option["by_year_type"]["dry"]["water_met_pct"]
+    return "low" if met >= 90 else ("medium" if met >= 70 else "high")
+
+
+def income_vs_current(option: dict, current: dict) -> str:
+    """Rough income band vs. the current crop. A comparison, because shared cost
+    errors (land, equipment) mostly cancel out; exact dollars are not reliable."""
+    diff = option["expected_profit_per_acre"] - current["expected_profit_per_acre"]
+    if diff >= 500:
+        return "much_higher"
+    if diff >= 150:
+        return "higher"
+    if diff > -150:
+        return "similar"
+    return "lower" if diff > -500 else "much_lower"
+
+
+def soil_effect(option: dict) -> str:
+    score = option["soil_score"]
+    return "builds" if score >= 6 else ("hard" if score <= 3 else "neutral")
+
+
+def make_card(option: dict, current: dict, crop_id: str) -> dict:
+    risk = water_risk(option)
+    dry_met = option["by_year_type"]["dry"]["water_met_pct"]
+    income = "current" if option is current else income_vs_current(option, current)
+    soil = soil_effect(option)
+    return {
+        "fits_field": True,      # crops that don't fit were already moved to `excluded`
+        "water_risk": risk,
+        "water_text": f"In a dry year it gets about {dry_met}% of the water it needs",
+        "income_vs_current": income,
+        "income_text": "What you grow now" if income == "current" else INCOME_TEXT[income],
+        "soil": soil,
+        "soil_text": option["soil_note"],
+        "watch_outs": WATCH_OUTS.get(crop_id, []),
+    }
+
+
+def rank_points(card: dict, priorities: dict) -> float:
+    income = INCOME_POINTS.get(card["income_vs_current"], 0.5)   # current crop = middle
+    return round(priorities["water"] * WATER_POINTS[card["water_risk"]]
+                 + priorities["income"] * income
+                 + priorities["soil"] * SOIL_POINTS[card["soil"]], 3)
+
+
 def plain_summary(options: list[dict], odds: dict, supply: str) -> str:
-    """Two or three plain sentences a farmer can read first, built from the ranking."""
+    """Two or three plain sentences, no dollar amounts (those are in the details)."""
     cur = options[0]
-    best = max(options, key=lambda o: o["score"])
+    rest = options[1:]
     dry_pct = round(odds["dry"] * 100)
+    cur_card = cur["card"]
     s = []
-    if best is cur:
-        s.append(f"Staying with {cur['label'].lower()} looks like your best option next season: "
-                 f"about ${cur['expected_profit_per_acre']:,}/acre expected.")
+    if not rest:
+        return (f"{cur['label']} is the only option that fits here. In a dry year "
+                f"({dry_pct}% odds) it gets about {cur['by_year_type']['dry']['water_met_pct']}% "
+                "of the water it needs.")
+    best = max(rest, key=lambda o: o["rank_score"])
+    if cur["rank_score"] >= best["rank_score"]:
+        s.append(f"Staying with {cur['label'].lower()} looks like your best fit for next season.")
     else:
-        s.append(f"Your best option for next season looks like {best['label'].lower()}: about "
-                 f"${best['expected_profit_per_acre']:,}/acre expected, compared with "
-                 f"${cur['expected_profit_per_acre']:,}/acre if you stay with {cur['label'].lower()}.")
-    rest = options[1:] or options
-    safest = max(rest, key=lambda o: o["dry_year_profit_per_acre"])
-    dry_profit = safest["dry_year_profit_per_acre"]
-    if dry_profit >= 0:
-        s.append(f"If next year turns dry ({dry_pct}% odds), {safest['label'].lower()} holds up best, "
-                 f"still clearing about ${dry_profit:,}/acre.")
-    else:
-        s.append(f"If next year turns dry ({dry_pct}% odds), every option loses money; "
-                 f"{safest['label'].lower()} loses the least (${dry_profit:,}/acre).")
+        b = best["card"]
+        soil_words = {"builds": "it helps your soil", "neutral": "it is neutral for your soil",
+                      "hard": "it is hard on your soil"}[b["soil"]]
+        s.append(f"Best fit for your field and water: {best['label'].lower()}. "
+                 f"Its water risk is {b['water_risk']}, income is {b['income_text'].lower()}, "
+                 f"and {soil_words}.")
+    s.append(f"{cur['label']}, what you grow now, has {cur_card['water_risk']} water risk: "
+             f"in a dry year ({dry_pct}% odds) it gets about "
+             f"{cur['by_year_type']['dry']['water_met_pct']}% of the water it needs.")
+    if all(o["card"]["water_risk"] == "high" for o in options):
+        s.append("With this water supply, every option is short of water in a dry year, "
+                 "so the ranking favors the crops that lose the least.")
     if supply != "full":
-        s.append(f"These numbers already assume your {supply} water supply.")
+        s.append(f"This already assumes your {supply} water supply.")
     return " ".join(s)
 
 
@@ -359,7 +436,7 @@ def _why(option: dict, tag: str, supply: str) -> str:
     dry = option["by_year_type"]["dry"]
     parts = {
         "current": "This is what you grow now. It is the baseline the other options are compared with.",
-        "best_overall": "Best balance of profit and water risk for this field.",
+        "best_overall": "Best fit for this field, your water and your priorities.",
         "safest_dry_year": "Holds up best if next season is dry.",
         "best_for_soil": "Does the most for soil health of the crops that fit here.",
         "alternative": "Another option that scores well here.",
@@ -384,12 +461,29 @@ def _risks(option: dict, problems: list[str]) -> list[str]:
     return risks
 
 
+def _normalize_priorities(priorities: dict | None) -> dict:
+    """Farmer's weights for water / income / soil, scaled to sum to 1."""
+    p = dict(DEFAULT_PRIORITIES)
+    for k, v in (priorities or {}).items():
+        if k not in p:
+            raise ValueError(f"unknown priority '{k}'. Use water, income, soil")
+        if v is None or v < 0:
+            raise ValueError("priorities must be 0 or more")
+        p[k] = float(v)
+    total = sum(p.values())
+    if total <= 0:
+        raise ValueError("at least one priority must be above 0")
+    return {k: round(v / total, 3) for k, v in p.items()}
+
+
 def build_report(field, current_crop: str, water_supply: str = "full",
                  area_crops: list[dict] | None = None, snowpack: str = "auto",
                  crops: dict | None = None, climate: dict | None = None,
                  location: dict | None = None,
                  irrigation_method: str = "sprinkler", water_source: str = "surface",
-                 crop_water_need_in: dict | None = None) -> dict:
+                 crop_water_need_in: dict | None = None,
+                 priorities: dict | None = None) -> dict:
+    priorities = _normalize_priorities(priorities)
     use_market = crops is None      # a crop table passed in by hand is used as is
     crops = crops or load_crops()
     assumptions = request_assumptions(irrigation_method, water_source)
@@ -479,12 +573,16 @@ def build_report(field, current_crop: str, water_supply: str = "full",
     # Pick the options: the current crop plus the 4 best by money (score = expected
     # profit minus half the dry-year downside). Tags then describe what each one is
     # best at among the crops shown, so a tag is never a false claim.
+    current = scored[current_crop]
+    for name, s in scored.items():
+        s["card"] = make_card(s, current, name)
+        s["rank_score"] = rank_points(s["card"], priorities)
     others = [s for n, s in scored.items() if n != current_crop]
-    top = sorted(others, key=lambda s: s["score"], reverse=True)[:4]
+    top = sorted(others, key=lambda s: (s["rank_score"], s["score"]), reverse=True)[:4]
     tags = {s["crop"]: "alternative" for s in top}
     if top:
         tags[top[0]["crop"]] = "best_overall"
-        safest = max(top, key=lambda s: s["dry_year_profit_per_acre"])
+        safest = max(top, key=lambda s: (s["by_year_type"]["dry"]["water_met_pct"], s["rank_score"]))
         if tags[safest["crop"]] == "alternative":
             tags[safest["crop"]] = "safest_dry_year"
         soil = max(top, key=lambda s: (s["soil_score"], s["score"]))
@@ -499,6 +597,8 @@ def build_report(field, current_crop: str, water_supply: str = "full",
             "tag": tag,
             "crop": name,
             "label": o["label"],
+            "rank_score": o["rank_score"],
+            "card": o["card"],
             "score": o["score"],
             "expected_profit_per_acre": o["expected_profit_per_acre"],
             "expected_profit_field": round(o["expected_profit_per_acre"] * acres),
@@ -511,8 +611,8 @@ def build_report(field, current_crop: str, water_supply: str = "full",
             "why": _why(o, tag, water_supply),
             "risks": _risks(o, o["problems"]),
         })
-    # Current crop first, then the rest by score
-    options = options[:1] + sorted(options[1:], key=lambda o: o["score"], reverse=True)
+    # Current crop first, then the rest by fit + water + income + soil
+    options = options[:1] + sorted(options[1:], key=lambda o: (o["rank_score"], o["score"]), reverse=True)
 
     return {
         "summary": plain_summary(options, odds, water_supply),
@@ -537,6 +637,11 @@ def build_report(field, current_crop: str, water_supply: str = "full",
             + ", ".join(sorted({c["source"] for c in crops.values()})) + ")",
         ],
         "assumptions": assumptions,
+        "priorities": priorities,
+        "money_note": ("Income is shown as a comparison with what you grow now, not as exact "
+                       "profit. Exact profit depends on your own costs, contracts and prices. "
+                       "The dollar estimates in each option's details include land and equipment "
+                       "ownership costs, so they are rough."),
         "disclaimer": "This tool supports decisions. It does not replace your judgment "
                       "or local agricultural experts.",
     }

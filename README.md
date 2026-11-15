@@ -73,7 +73,7 @@ npm install
 npm run dev
 ```
 
-The Vite development server proxies `/api` requests to `http://localhost:8000`. Set `VITE_API_BASE_URL` when the API is hosted elsewhere. The UI uses `/fields/profile` and `/fields/history` to review the field and estimated crop history, then `/fields/insights` and `/report` for separate agronomy and profit views. The insights API uses metric units; `/report` uses acres, inches, and dollars per acre. Profit and yield inputs in the current report data are placeholders.
+The Vite development server proxies `/api` requests to `http://localhost:8000`. Set `VITE_API_BASE_URL` when the API is hosted elsewhere. The UI uses `/fields/profile` and `/fields/history` to review the field and estimated crop history, then `/fields/insights` and `/report` for separate agronomy and profit views. The insights API uses metric units; `/report` uses acres, inches, and dollars per acre.
 
 Optional USDA NASS yield/price data and OpenET field water use need API keys. Copy `.env.example` to `.env` and add the keys; `.env` is ignored by Git. Without an OpenET key, the report uses crop-table water needs.
 
@@ -101,7 +101,7 @@ Returns `options` (current crop first, then ranked), each with expected and dry-
 
 **Climate:** fetched from NASA POWER for each field's own location (snapped to NASA's ~0.5° grid) and cached in `data/cache/`. The first request for an area takes a few seconds; after that it's instant. If NASA can't be reached, the engine uses placeholder climate and says so in the report.
 
-**Placeholders to replace:** every number in `data/crops.csv` (marked `source = placeholder`) and the water assumptions at the top of `app/engine.py`.
+**Crop numbers:** every row in `data/crops.csv` is sourced (see its `source` column and `docs/data-sources.md`). The water assumptions at the top of `app/engine.py` are judgment and are listed in every report under `assumptions`.
 
 ## Measured field water use (OpenET)
 

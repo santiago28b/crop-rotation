@@ -42,6 +42,9 @@ function plantingWindow(candidate) {
   return `${date(window.start_doy)} – ${date(window.end_doy)}${window.start_doy > window.end_doy ? ' (across New Year)' : ''}`
 }
 
+const riskWords = { low: 'Low', medium: 'Medium', high: 'High' }
+const soilWords = { builds: 'Helps your soil', neutral: 'Neutral', hard: 'Hard on soil' }
+
 function notes(option) {
   if (!option.data_notes || typeof option.data_notes !== 'object') return []
   return Object.entries(option.data_notes).map(([key, value]) => ({
@@ -76,7 +79,7 @@ onMounted(() => {
         <div>
           <p class="eyebrow">A plan that fits your field</p>
           <h1 id="recommendations-title" ref="pageTitle" tabindex="-1">Your crop options</h1>
-          <p class="recommendations-intro">Compare <strong>growing fit</strong>, <strong>water needs</strong>, and <strong>estimated returns</strong> before choosing your next crop.</p>
+          <p class="recommendations-intro">Compare <strong>growing fit</strong>, <strong>water risk</strong>, <strong>income</strong>, and <strong>soil health</strong> before choosing your next crop.</p>
         </div>
         <span class="field-count">{{ fields.length }} {{ fields.length === 1 ? 'field' : 'fields' }}</span>
       </div>
@@ -136,7 +139,7 @@ onMounted(() => {
 
         <div v-if="options.length" class="options-heading">
           <h2>Compare your options</h2>
-          <p>Estimated returns are in <strong>US dollars</strong>. Water amounts are in <strong>inches</strong>.</p>
+          <p>Ranked by how well each crop fits your field and holds up with your water. Income is compared with what you grow now.</p>
         </div>
 
         <div class="crop-options">
@@ -154,21 +157,26 @@ onMounted(() => {
               <h3>{{ option.label || option.crop.replaceAll('_', ' ') }}</h3>
             </div>
 
-            <div class="expected-return">
-              <span class="metric-label">Expected net return</span>
-              <p><strong :class="{ 'negative-return': option.expected_profit_per_acre < 0 }">{{ money(option.expected_profit_per_acre) }}</strong><span> / acre</span></p>
-            </div>
-
-            <dl class="return-comparison">
+            <dl v-if="option.card" class="crop-tiers">
               <div>
-                <dt>In a dry year</dt>
-                <dd :class="{ 'negative-return': option.dry_year_profit_per_acre < 0 }">{{ money(option.dry_year_profit_per_acre) }} <small>/ acre</small></dd>
+                <dt>Water risk in a dry year</dt>
+                <dd><span class="tier" :class="`tier--${option.card.water_risk}`">{{ riskWords[option.card.water_risk] }}</span></dd>
+                <dd class="tier-detail">{{ option.card.water_text }}</dd>
               </div>
               <div>
-                <dt>For your whole field</dt>
-                <dd :class="{ 'negative-return': option.expected_profit_field < 0 }">{{ money(option.expected_profit_field) }}</dd>
+                <dt>Income</dt>
+                <dd><span class="tier" :class="`tier--${option.card.income_vs_current}`">{{ option.card.income_text }}</span></dd>
+              </div>
+              <div>
+                <dt>Soil</dt>
+                <dd><span class="tier" :class="`tier--soil-${option.card.soil}`">{{ soilWords[option.card.soil] }}</span></dd>
+                <dd class="tier-detail">{{ option.card.soil_text }}</dd>
               </div>
             </dl>
+
+            <ul v-if="option.card?.watch_outs?.length" class="crop-watch-outs">
+              <li v-for="item in option.card.watch_outs" :key="item">{{ item }}</li>
+            </ul>
 
             <p v-if="option.why" class="crop-reason">{{ option.why }}</p>
 
@@ -181,6 +189,17 @@ onMounted(() => {
             <p v-if="option.risks?.length" class="crop-risk"><strong>Watch for:</strong> {{ option.risks[0] }}</p>
             <details class="crop-evidence">
               <summary>Why this option &amp; where the numbers come from</summary>
+              <dl class="return-comparison">
+                <div>
+                  <dt>Rough net return</dt>
+                  <dd :class="{ 'negative-return': option.expected_profit_per_acre < 0 }">{{ money(option.expected_profit_per_acre) }} <small>/ acre</small></dd>
+                </div>
+                <div>
+                  <dt>In a dry year</dt>
+                  <dd :class="{ 'negative-return': option.dry_year_profit_per_acre < 0 }">{{ money(option.dry_year_profit_per_acre) }} <small>/ acre</small></dd>
+                </div>
+              </dl>
+              <p v-if="result.report?.money_note" class="evidence-gap">{{ result.report.money_note }}</p>
               <ul v-if="option.risks?.length"><li v-for="risk in option.risks" :key="risk">{{ risk }}</li></ul>
               <p v-for="flag in candidate?.rotation?.flags || []" :key="flag">{{ flag }}</p>
               <p v-for="evidence in candidate?.evidence || []" :key="evidence">{{ evidence }}</p>
@@ -248,6 +267,16 @@ onMounted(() => {
 .crop-option--best { border: 2px solid var(--green); box-shadow: 0 6px 24px #6d441d12; }
 .crop-option--current { background: #fffaf1; }
 .crop-option-heading h3 { margin: 16px 0 22px; color: var(--ink); font-size: 28px; line-height: 1.2; letter-spacing: -.035em; }
+.crop-tiers { display: grid; gap: 14px; margin: 0 0 18px; }
+.crop-tiers dt { margin-bottom: 6px; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.crop-tiers dd { margin: 0; }
+.tier { display: inline-block; padding: 5px 10px; border-radius: 7px; border: 1px solid var(--line); background: #fbf6ec; color: var(--ink); font-size: 14px; font-weight: 750; }
+.tier-detail { margin-top: 5px !important; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.tier--low, .tier--much_higher, .tier--higher, .tier--soil-builds { border-color: #9fbf8a; background: #eef5e6; color: #35572a; }
+.tier--medium, .tier--similar, .tier--soil-neutral { border-color: #e3c98f; background: #fbf1da; color: #7a5410; }
+.tier--high, .tier--lower, .tier--much_lower, .tier--soil-hard { border-color: #e2a99a; background: #fbe9e4; color: #8a3423; }
+.tier--current { color: var(--green-dark); }
+.crop-watch-outs { margin: 0 0 16px; padding: 12px 14px 12px 30px; border-radius: 10px; background: #fbf1da; color: #6a4a12; font-size: 14px; line-height: 1.55; }
 .crop-tag { display: inline-block; padding: 7px 11px; border-radius: 7px; color: var(--green-dark); background: #f2e7d2; font-size: 12px; font-weight: 800; letter-spacing: .025em; }
 .crop-tag--best_overall { background: var(--green); color: #fff; }
 .crop-tag--best_for_soil, .crop-tag--safest_dry_year { background: #eaf1e2; color: #355f28; }
