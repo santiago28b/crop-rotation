@@ -302,28 +302,36 @@ function continueWithConfirmedHistory() {
         <section class="field-info-card" aria-labelledby="water-title">
           <h2 id="water-title"><span class="section-icon" aria-hidden="true">💧</span>Water for this field</h2>
           <p v-if="currentProfile?.water_use?.available" class="field-card-help">🛰️ {{ currentProfile.water_use.note }}</p>
-          <label class="resource-question-label" :for="`irrigated-${fieldNumber}`">Is this field irrigated?</label>
-          <select :id="`irrigated-${fieldNumber}`" v-model="currentAnswers.irrigated" @change="currentAnswers.waterTouched = true">
-            <option value="">Not sure</option>
-            <option value="yes">Yes</option>
-            <option value="no">No — rain only</option>
-          </select>
-          <template v-if="currentAnswers.irrigated === 'yes'">
-            <label class="resource-question-label" :for="`irrigation-method-${fieldNumber}`">How is it irrigated? <span aria-hidden="true">*</span></label>
-            <select :id="`irrigation-method-${fieldNumber}`" v-model="currentAnswers.irrigationMethod" @change="currentAnswers.waterTouched = true">
-              <option value="" disabled>Choose a method</option>
-              <option value="drip">Drip</option>
-              <option value="sprinkler">Sprinkler or pivot</option>
-              <option value="surface">Flood or furrow</option>
-            </select>
-            <label class="resource-question-label" :for="`water-source-${fieldNumber}`">Where does the water come from? <span aria-hidden="true">*</span></label>
-            <select :id="`water-source-${fieldNumber}`" v-model="currentAnswers.waterSource" @change="currentAnswers.waterTouched = true">
-              <option value="" disabled>Choose a source</option>
-              <option value="surface">Canal or river</option>
-              <option value="groundwater">Well</option>
-              <option value="mixed">Both</option>
-            </select>
-          </template>
+          <div class="water-questions">
+            <div class="form-field">
+              <label class="resource-question-label" :for="`irrigated-${fieldNumber}`">Is this field irrigated?</label>
+              <select :id="`irrigated-${fieldNumber}`" v-model="currentAnswers.irrigated" class="form-select" @change="currentAnswers.waterTouched = true">
+                <option value="">Not sure</option>
+                <option value="yes">Yes</option>
+                <option value="no">No — rain only</option>
+              </select>
+            </div>
+            <template v-if="currentAnswers.irrigated === 'yes'">
+              <div class="form-field">
+                <label class="resource-question-label" :for="`irrigation-method-${fieldNumber}`">How is it irrigated? <span aria-hidden="true">*</span></label>
+                <select :id="`irrigation-method-${fieldNumber}`" v-model="currentAnswers.irrigationMethod" class="form-select" @change="currentAnswers.waterTouched = true">
+                  <option value="" disabled>Choose a method</option>
+                  <option value="drip">Drip</option>
+                  <option value="sprinkler">Sprinkler or pivot</option>
+                  <option value="surface">Flood or furrow</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="resource-question-label" :for="`water-source-${fieldNumber}`">Where does the water come from? <span aria-hidden="true">*</span></label>
+                <select :id="`water-source-${fieldNumber}`" v-model="currentAnswers.waterSource" class="form-select" @change="currentAnswers.waterTouched = true">
+                  <option value="" disabled>Choose a source</option>
+                  <option value="surface">Canal or river</option>
+                  <option value="groundwater">Well</option>
+                  <option value="mixed">Both</option>
+                </select>
+              </div>
+            </template>
+          </div>
           <p v-if="waterProblem" class="api-error" role="alert">{{ waterProblem }}</p>
         </section>
 
@@ -356,7 +364,7 @@ function continueWithConfirmedHistory() {
           <div class="crop-history-list">
             <label v-for="(entry, index) in currentAnswers.cropHistory" :key="entry.year" class="crop-year">
               <span>{{ entry.year }}</span>
-              <select :id="`field-${fieldNumber}-crop-${entry.year}`" v-model="entry.crop_id" @change="updateCropEntry(entry)">
+              <select :id="`field-${fieldNumber}-crop-${entry.year}`" v-model="entry.crop_id" class="form-select" @change="updateCropEntry(entry)">
                 <option value="">Unknown / not sure</option>
                 <option v-for="crop in cropOptions" :key="crop.id" :value="crop.id">{{ crop.name }}</option>
               </select>

@@ -191,17 +191,21 @@ function cropName(id) {
       <form class="resources-form" @submit.prevent="saveResources">
         <section v-for="(field, index) in fields" :key="`comparison-${index}`" class="resource-section comparison-inputs">
           <h2>{{ field.name || `Field ${index + 1}` }}</h2>
-          <label class="resource-question-label" :for="`current-crop-${index}`">What crop is growing here now?</label>
-          <select :id="`current-crop-${index}`" v-model="currentCrops[index]" required>
-            <option value="" disabled>Choose a crop</option>
-            <option v-for="crop in reportCrops" :key="crop.crop" :value="crop.crop">{{ crop.label }}</option>
-          </select>
-          <label class="resource-question-label" :for="`water-supply-${index}`">How reliable is the water supply?</label>
-          <select :id="`water-supply-${index}`" v-model="waterSupplies[index]">
-            <option value="full">Reliable / full supply</option>
-            <option value="limited">Some limits</option>
-            <option value="short">Short or unreliable</option>
-          </select>
+          <div class="form-field">
+            <label class="resource-question-label" :for="`current-crop-${index}`">What crop is growing here now?</label>
+            <select :id="`current-crop-${index}`" v-model="currentCrops[index]" class="form-select" required>
+              <option value="" disabled>Choose a crop</option>
+              <option v-for="crop in reportCrops" :key="crop.crop" :value="crop.crop">{{ crop.label }}</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="resource-question-label" :for="`water-supply-${index}`">How reliable is the water supply?</label>
+            <select :id="`water-supply-${index}`" v-model="waterSupplies[index]" class="form-select">
+              <option value="full">Reliable / full supply</option>
+              <option value="limited">Some limits</option>
+              <option value="short">Short or unreliable</option>
+            </select>
+          </div>
         </section>
 
         <section class="resource-section">
@@ -221,7 +225,7 @@ function cropName(id) {
           <p class="field-card-help">Choose “Equal” if you do not have a strong preference.</p>
           <label v-for="priority in priorityQuestions" :key="priority.key" class="priority-row" :for="`priority-${priority.key}`">
             <span>{{ priority.label }}</span>
-            <select :id="`priority-${priority.key}`" v-model.number="priorities[priority.key]">
+            <select :id="`priority-${priority.key}`" v-model.number="priorities[priority.key]" class="form-select">
               <option :value="0.25">Less important</option>
               <option :value="0.5">Equal</option>
               <option :value="1">More important</option>
