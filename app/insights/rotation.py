@@ -49,25 +49,25 @@ def evaluate(history: list[CropYear], crop: Crop, crops: dict[str, Crop], planti
         if streak >= 1 and prev_crop and prev_crop.family == crop.family:
             drag = min(MONOCULTURE_DRAG_PER_YEAR * streak, MONOCULTURE_DRAG_CAP)
             modifier -= drag
-            flags.append(f"{streak} consecutive year(s) of {crop.family} crops already: pests/disease carry over, "
-                         f"-{drag:.0%} yield drag applied")
+            flags.append(f"{streak} year(s) in a row of the same crop family already: pests and disease build up "
+                         f"(about {drag:.0%} lower yield)")
         if prev_crop and prev_crop.is_legume and not crop.is_legume:
             modifier += LEGUME_BREAK_BONUS
-            flags.append(f"legume ({prev_crop.name}) before this crop: +{LEGUME_BREAK_BONUS:.0%} rotation benefit "
-                         f"and {n_credit:.0f} kg/ha N credit")
+            flags.append(f"Follows {prev_crop.name}, which adds nitrogen: about {LEGUME_BREAK_BONUS:.0%} better yield "
+                         f"and about {n_credit * 0.892:.0f} lb/acre less fertilizer needed")
         if prev_crop and prev_crop.role == "cover":
             modifier += COVER_CROP_BONUS
-            flags.append(f"cover crop ({prev_crop.name}) last season: better infiltration / organic matter")
+            flags.append(f"Follows a cover crop ({prev_crop.name}): water soaks in better and the soil has more organic matter")
         if not interval_ok:
             modifier -= RETURN_INTERVAL_PENALTY
-            flags.append(f"grown {years_since} yr ago but should return only every {crop.min_return_years} yr "
-                         f"(soil-borne disease); -{RETURN_INTERVAL_PENALTY:.0%}")
+            flags.append(f"Grown here {years_since} year(s) ago, but should wait {crop.min_return_years} years "
+                         f"because of soil disease (about {RETURN_INTERVAL_PENALTY:.0%} lower yield)")
         if prev_crop and prev_crop.family == "Brassicaceae" and crop.family in ("Solanaceae", "Amaranthaceae"):
-            flags.append("brassica before this crop: biofumigant effect may suppress nematodes")
+            flags.append("Follows a mustard-family crop, which can reduce nematodes (tiny soil pests)")
     if prev and prev.crop_id is None:
-        flags.append(f"previous crop '{prev.crop_label}' is not in the crop list; rotation effects unknown")
+        flags.append(f"We don't know the crop '{prev.crop_label}', so its rotation effects are unknown")
     if crop.perennial:
-        flags.append("perennial stand: occupies the field for several years; N and soil benefits accrue after removal")
+        flags.append("Perennial: stays in the field for several years; its soil and nitrogen benefits come after it is removed")
 
     return Rotation(
         yield_modifier=round(max(modifier, 0.5), 2),

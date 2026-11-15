@@ -292,10 +292,14 @@ function continueWithConfirmedHistory() {
             <span v-if="currentProfile.soil.ph != null"> · pH {{ currentProfile.soil.ph }}</span>
           </p>
           <p v-if="currentProfile.climate">
-            Recent climate ({{ currentProfile.climate.recent.years }}):
-            {{ Math.round(currentProfile.climate.recent.precip_season_mm) }} mm growing-season rain
+            Rain in the growing season: about
+            {{ (currentProfile.climate.recent.precip_season_mm / 25.4).toFixed(1) }} inches a year
+            ({{ currentProfile.climate.recent.years }} average)
           </p>
-          <p class="field-card-help">Data sources: {{ currentProfile.sources.join(', ') }}</p>
+          <details class="field-card-help">
+            <summary>Where this comes from</summary>
+            {{ currentProfile.sources.join(', ') }}
+          </details>
           <p v-for="gap in currentProfile.gaps" :key="gap" class="field-card-help">{{ gap }}</p>
         </section>
 

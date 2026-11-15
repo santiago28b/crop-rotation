@@ -49,10 +49,11 @@ def classify_water_use(raw: dict, season_rain_mm: float) -> FieldWaterUse:
                              note="No satellite water-use measurement for this field, so we can't tell whether it is irrigated.")
     et_mm = round(et_in * 25.4)
     irrigated = et_mm > season_rain_mm + IRRIGATED_ET_MARGIN_MM
-    compare = f"about {et_mm} mm of water per growing season ({raw.get('years')}), against about {season_rain_mm:.0f} mm of rain"
-    note = (f"Satellites measured this field using {compare}: far more than rain supplies, so it looks irrigated."
+    compare = (f"about {et_in:.0f} inches of water per growing season ({raw.get('years')}), "
+               f"while rain gives about {season_rain_mm / 25.4:.0f} inches")
+    note = (f"Satellites measured this field using {compare}. That looks irrigated."
             if irrigated else
-            f"Satellites measured this field using {compare}: close to what rain supplies, so it does not look irrigated.")
+            f"Satellites measured this field using {compare}. That does not look irrigated.")
     return FieldWaterUse(available=True, season_et_mm=et_mm, season_rain_mm=round(season_rain_mm),
                          looks_irrigated=irrigated, years=raw.get("years"), source=raw["source"], note=note)
 
@@ -77,7 +78,7 @@ async def build_profile(req: FieldProfileRequest) -> FieldProfile:
                     return s
             except Exception as e:  # fall through to SoilGrids
                 log.warning("SSURGO failed: %s", e)
-                gaps.append("SSURGO unavailable; used SoilGrids instead")
+                gaps.append("USDA soil survey not available here, so a global soil map was used")
         return await soilgrids.fetch_soil(lat, lon)
 
     (df, elevation), soil, history, raw_water = await asyncio.gather(
@@ -93,13 +94,13 @@ async def build_profile(req: FieldProfileRequest) -> FieldProfile:
     if history.source:
         sources.append(history.source)
     gaps += [
-        "NASA POWER is a ~50 km grid: temperatures/rain are regional, not field-specific (lapse-rate downscaling planned)",
+        "Weather is for the area around your field (about 30 miles), not your exact field",
         *([] if water_use.available else
           ["No field-level water use (ET) for this field: OpenET needs OPENET_API_KEY and covers the western US"]),
-        "No groundwater trend yet: GRACE-FO lookup pending",
+        "Long-term groundwater trends are not included yet",
     ]
     if not history.available:
-        gaps.append("crop history not auto-detected; relies on farmer input")
+        gaps.append("Crop history could not be found automatically, so it comes from your answers")
 
     return FieldProfile(
         field=FieldInfo(name=req.name, centroid_lat=round(lat, 5), centroid_lon=round(lon, 5),

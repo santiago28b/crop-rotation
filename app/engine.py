@@ -160,9 +160,9 @@ def apply_field_water(crops: dict, current_crop: str, field_water: dict) -> dict
     if measured < 0.5 * table_need:
         field_water["applied_to_current_crop"] = False
         field_water["note"] = (
-            f"OpenET measured only {measured} in/season on this field, under half of what "
-            f"{crops[current_crop]['label'].lower()} typically needs ({table_need} in) — the field "
-            "probably wasn't growing it (or wasn't fully irrigated). Crop table value kept.")
+            f"Satellites saw this field use only about {measured:.0f} inches of water a season, under half "
+            f"of what {crops[current_crop]['label'].lower()} usually needs ({table_need:.0f} inches). "
+            "It probably wasn't growing it, or wasn't fully watered, so we use the usual amount instead.")
         return crops
     row = dict(crops[current_crop])
     row["water_need_in"] = measured
@@ -171,9 +171,9 @@ def apply_field_water(crops: dict, current_crop: str, field_water: dict) -> dict
     row["data_notes"] = notes
     field_water["applied_to_current_crop"] = True
     field_water["note"] = (
-        f"This field actually used about {measured} in of water per season "
-        f"({field_water['years']}). Used as the water need for {row['label'].lower()}; "
-        "other crops use table values.")
+        f"Satellites saw this field use about {measured:.0f} inches of water a season "
+        f"({field_water['years']}). We use that for {row['label'].lower()}, and typical "
+        "amounts for the other crops.")
     return {**crops, current_crop: row}
 
 

@@ -38,6 +38,16 @@ const priorityQuestions = [
   { key: 'low_risk', label: 'Lower risk' },
 ]
 
+// The farmer's answers on the last screen also rank the crop cards.
+// "Using less water" and "Lower risk" both mean: hold up when water is short.
+function reportPriorities() {
+  return {
+    water: priorities.water + priorities.low_risk,
+    income: priorities.income,
+    soil: priorities.soil_health,
+  }
+}
+
 function initialCrop(answer) {
   const known = [...(answer?.cropHistory || [])].reverse().find((entry) =>
     reportCrops.value.some((crop) => crop.crop === reportCropId(entry.crop_id)))
@@ -139,6 +149,7 @@ async function saveResources() {
             : answer.irrigated === 'no' ? 'none' : undefined,
           answer.irrigated === 'yes' ? (answer.waterSource || 'surface') : undefined,
           waterNeeds,
+          reportPriorities(),
         )
       } catch (error) {
         reportError = error.message || 'The profit comparison failed.'

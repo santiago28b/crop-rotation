@@ -98,7 +98,7 @@ async def build_insights(req: FieldInsightsRequest) -> FieldInsights:
         "This is decision support from regional satellite/model data — confirm with local agronomists before acting.",
     ]
     if ctx.frost_free:
-        notes.append("No killing frost in the record: planting windows follow temperature and rainfall suitability instead of frost dates.")
+        notes.append("No hard frosts in the weather record, so planting dates are based on temperature and rain instead.")
 
     return FieldInsights(
         field=FieldInfo(name=req.name, centroid_lat=round(lat, 5), centroid_lon=round(lon, 5),
@@ -172,7 +172,8 @@ def _evaluate(crop: Crop, ctx: _Ctx, soil, req: FieldInsightsRequest, planting_y
         safe_base = frost.safe_plant_sdoy(ctx.baseline, crop.kill_frost_c)
         if safe_base is not None:
             shift = float(safe - safe_base)
-            evidence.append(f"safe planting date moved {shift:+.0f} days vs 2001-2012 "
+            evidence.append(f"The safe planting date is now about {abs(shift):.0f} days "
+                            f"{'earlier' if shift < 0 else 'later'} than in 2001-2012 "
                             f"({_date_label(ctx.cal(safe_base))} → {_date_label(ctx.cal(safe))})")
 
     # ---- 3. harvest window across years (GDD if known, else cycle length) ----
@@ -188,7 +189,7 @@ def _evaluate(crop: Crop, ctx: _Ctx, soil, req: FieldInsightsRequest, planting_y
                                 reason=f"median harvest ({_date_label(ctx.cal(p50))}) falls after the first "
                                        f"{crop.kill_frost_c:+.0f} °C frost ({_date_label(ctx.cal(harvest_by))})")
         if not fits:
-            evidence.append("late years run into fall frost: harvest 90th percentile is after the safe date")
+            evidence.append("In late years, harvest can run into the first fall frost")
 
     # ---- 4. water ----
     etc, peff, irr = crop_water(ctx.eto_clim, ctx.p_clim, best, crop, cycle)
@@ -203,10 +204,11 @@ def _evaluate(crop: Crop, ctx: _Ctx, soil, req: FieldInsightsRequest, planting_y
             deficit = "high"
     else:
         deficit = "low" if rain_prob >= 0.8 else ("medium" if rain_prob >= 0.5 else "high")
-    evidence.append(f"crop water need {etc:.0f} mm; effective rain {peff:.0f} mm; irrigation need {irr:.0f} mm "
-                    f"(FAO-56, 2013-2025 climatology)")
+    evidence.append(f"Needs about {etc / 25.4:.0f} inches of water a season. Rain covers about "
+                    f"{peff / 25.4:.0f}, so about {irr / 25.4:.0f} inches must come from irrigation "
+                    f"(2013-2025 weather)")
     if not irrigated:
-        evidence.append(f"rain over the cycle met the crop minimum ({crop.rain_mm.abs_min:.0f} mm) in {rain_prob:.0%} of years")
+        evidence.append(f"Without irrigation, rain was enough for this crop in {rain_prob:.0%} of years")
 
     # ---- 5. soil, rotation, fertilizer ----
     soil_s, soil_reasons = suitability.soil_suitability(soil, crop)
@@ -230,8 +232,8 @@ def _evaluate(crop: Crop, ctx: _Ctx, soil, req: FieldInsightsRequest, planting_y
     risks["drought"] = Risk(level=deficit, evidence=("irrigated; allotment " + (f"{allot:.0f} mm vs need {irr:.0f} mm" if allot else "unknown"))
                             if irrigated else f"rainfed; cycle rain sufficient in {rain_prob:.0%} of years")
     risks["water_security"] = Risk(level="unknown", evidence="GRACE-FO groundwater trend not wired yet")
-    gaps.append("long-term water security (GRACE-FO) and field ET history (OpenET/MOD16) not yet included")
-    gaps.append("NASA POWER ~50 km grid: local frost pockets / slopes can differ from these dates")
+    gaps.append("Long-term groundwater trends are not included yet")
+    gaps.append("Weather data covers a ~30-mile area, so low spots or slopes on your field can get frost earlier or later")
 
     # ---- 7. equipment, double crop ----
     has = None
@@ -242,10 +244,10 @@ def _evaluate(crop: Crop, ctx: _Ctx, soil, req: FieldInsightsRequest, planting_y
         left = harvest_by - p50
         if left >= 60:
             partner = "mustard_cover"
-            evidence.append(f"~{left} frost-free days remain after median harvest: a short cover crop fits")
+            evidence.append(f"About {left} frost-free days are left after a typical harvest: room for a short cover crop")
     elif ctx.frost_free and crop.role == "cash" and cycle <= 150:
         partner = "cowpea" if crop.id != "cowpea" else "pearl_millet"
-        evidence.append("frost-free climate: a second short-cycle crop is possible after harvest")
+        evidence.append("No frost here: there may be time for a second short crop after harvest")
 
     return CandidateCrop(
         crop_id=crop.id, name=crop.name, role=crop.role,
