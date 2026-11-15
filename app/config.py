@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent          # repo root
 APP_DATA_DIR = Path(__file__).resolve().parent / "data"  # crops.yaml etc. (committed)
-CACHE_DIR = ROOT / "data" / "cache"                    # API responses (git-ignored)
+# API responses (git-ignored). On Vercel the project folder is read-only and /tmp is
+# the only writable place, so the cache lives there (per warm instance).
+CACHE_DIR = Path(os.environ.get("CACHE_DIR")
+                 or ("/tmp/patato-cache" if os.environ.get("VERCEL") else ROOT / "data" / "cache"))
 
 load_dotenv(ROOT / ".env")
 

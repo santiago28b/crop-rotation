@@ -22,7 +22,7 @@ import requests
 import app.config  # noqa: F401  (loads .env so NASS_API_KEY can live there)
 
 ROOT = Path(__file__).resolve().parent.parent
-CACHE_DIR = ROOT / "data" / "cache"
+from app.config import CACHE_DIR  # noqa: E402  (one cache location for every module)
 FCC_URL = "https://geo.fcc.gov/api/census/block/find"
 NASS_URL = "https://quickstats.nass.usda.gov/api/api_GET/"
 FIRST_YEAR = 2020   # average everything USDA has from this year on

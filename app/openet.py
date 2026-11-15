@@ -26,7 +26,7 @@ import requests
 import app.config  # noqa: F401  (loads .env so OPENET_API_KEY can live there)
 
 ROOT = Path(__file__).resolve().parent.parent
-CACHE_DIR = ROOT / "data" / "cache"
+from app.config import CACHE_DIR  # noqa: E402  (one cache location for every module)
 API_URL = "https://openet-api.org/raster/timeseries/point"
 SEASON_MONTHS = range(4, 11)      # April-October: the irrigation season here
 YEARS_BACK = 3

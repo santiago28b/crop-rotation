@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from fetch_power import fetch_power          # noqa: E402
 from summarize_power import yearly_summary   # noqa: E402
 
-CACHE_DIR = ROOT / "data" / "cache"
+from app.config import CACHE_DIR  # noqa: E402  (one cache location for every module)
 YEAR_TYPES = ["dry", "normal", "wet"]
 MM_PER_IN = 25.4
 START_YEAR, END_YEAR = 2001, 2025

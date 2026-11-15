@@ -1,0 +1,15 @@
+# Never upload secrets
+.env
+.env.*
+!.env.example
+
+# Local-only / regenerated
+.venv/
+venv/
+**/__pycache__/
+**/node_modules/
+app/dist/
+data/raw/
+data/processed/
+data/cache/
+.pytest_cache/
