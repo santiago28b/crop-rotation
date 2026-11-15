@@ -45,26 +45,26 @@ def soil_suitability(soil: SoilProfile, crop: Crop) -> tuple[float, list[str]]:
     reasons = []
     ph_s = trapezoid(soil.ph, crop.ph)
     if soil.ph is None:
-        reasons.append("soil pH unknown")
+        reasons.append("Soil acidity (pH) is unknown")
     elif ph_s == 0:
         # map-unit pH is an average; keep a strong penalty but not a hard zero that hides the crop
         ph_s = 0.2
-        reasons.append(f"soil pH {soil.ph} outside the crop's range {crop.ph.abs_min}-{crop.ph.abs_max} (amendment / local check needed)")
+        reasons.append(f"Soil pH {soil.ph} is outside what this crop tolerates ({crop.ph.abs_min}-{crop.ph.abs_max}); the soil may need lime or sulfur, so check locally")
     elif ph_s < 1:
-        reasons.append(f"soil pH {soil.ph} outside optimum {crop.ph.opt_min}-{crop.ph.opt_max}")
+        reasons.append(f"Soil pH {soil.ph} is not ideal for this crop (best {crop.ph.opt_min}-{crop.ph.opt_max})")
 
     drain_s = 1.0
     dc = (soil.drainage_class or "").lower()
     if dc and not crop.tolerates_poor_drainage and ("poorly" in dc or "very poorly" in dc):
         drain_s = 0.3 if "somewhat" in dc else 0.1
-        reasons.append(f"'{soil.drainage_class}' soil; crop needs good drainage")
+        reasons.append(f"This soil drains poorly ({soil.drainage_class.lower()}); the crop needs good drainage")
     if crop.id == "rice_paddy" and dc and "well" in dc and "poorly" not in dc:
         drain_s = 0.6
-        reasons.append("paddy rice prefers soils that hold water; this one drains well")
+        reasons.append("Paddy rice needs soil that holds water; this one drains well")
 
     tex = (soil.texture_class or "")
     if crop.id in ("potato", "groundnut", "sweet_potato", "onion") and tex in ("clay", "silty clay", "sandy clay"):
         drain_s = min(drain_s, 0.5)
-        reasons.append(f"heavy {tex} soil hampers root/tuber crops")
+        reasons.append(f"Heavy {tex} soil makes it hard to grow and dig root crops")
 
     return round(min(ph_s, drain_s), 3), reasons

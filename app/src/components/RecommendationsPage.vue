@@ -24,8 +24,13 @@ const sources = computed(() => [...new Set([
   ...(result.value?.insights?.sources || []),
 ])])
 
+// Suitability is 0-1 (the weaker of climate fit and soil fit). Shown as words.
 function growingFit(candidate) {
-  return percent(candidate?.suitability?.overall ?? candidate?.score)
+  const value = candidate?.suitability?.overall ?? candidate?.score
+  if (value == null) return 'Not checked'
+  if (value >= 0.7) return 'Grows well here'
+  if (value >= 0.4) return 'Can grow here'
+  return 'Hard to grow here'
 }
 
 function date(doy) {
@@ -79,7 +84,7 @@ onMounted(() => {
         <div>
           <p class="eyebrow">A plan that fits your field</p>
           <h1 id="recommendations-title" ref="pageTitle" tabindex="-1">Your crop options</h1>
-          <p class="recommendations-intro">Compare <strong>growing fit</strong>, <strong>water risk</strong>, <strong>income</strong>, and <strong>soil health</strong> before choosing your next crop.</p>
+          <p class="recommendations-intro">Compare <strong>how well it grows here</strong>, <strong>water risk</strong>, <strong>income</strong>, and <strong>soil health</strong> before choosing your next crop.</p>
         </div>
         <span class="field-count">{{ fields.length }} {{ fields.length === 1 ? 'field' : 'fields' }}</span>
       </div>
@@ -181,7 +186,7 @@ onMounted(() => {
             <p v-if="option.why" class="crop-reason">{{ option.why }}</p>
 
             <dl v-if="candidate" class="growing-facts">
-              <div><dt>Growing fit</dt><dd class="fit-value">{{ growingFit(candidate) }}</dd></div>
+              <div><dt>Climate and soil</dt><dd class="fit-value">{{ growingFit(candidate) }}</dd></div>
               <div><dt>Planting window</dt><dd>{{ plantingWindow(candidate) }}</dd></div>
               <div v-if="candidate.water?.crop_need_mm != null"><dt>Seasonal water need</dt><dd>{{ Math.round(candidate.water.crop_need_mm / 25.4) }} in</dd></div>
             </dl>
@@ -218,7 +223,7 @@ onMounted(() => {
           <div class="other-crop-list">
             <article v-for="candidate in otherCandidates" :key="candidate.crop_id">
               <div><h3>{{ candidate.name }}</h3><span>{{ candidate.role === 'cover' ? 'Cover crop' : candidate.role === 'forage' ? 'Forage crop' : 'Crop option' }}</span></div>
-              <strong>{{ growingFit(candidate) }} <small>growing fit</small></strong>
+              <strong>{{ growingFit(candidate) }}</strong>
               <p>Plant {{ plantingWindow(candidate) }}</p>
               <p v-if="candidate.water?.crop_need_mm != null">About <strong>{{ Math.round(candidate.water.crop_need_mm / 25.4) }} in</strong> seasonal water need</p>
             </article>
