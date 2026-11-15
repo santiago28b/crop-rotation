@@ -93,9 +93,11 @@ def test_top5_and_summary():
     r = report()                                      # full table, 9 candidates
     assert len(r["options"]) == 5
     assert r["options"][0]["tag"] == "current"
-    best = max(r["options"], key=lambda o: o["score"])
-    assert best["label"].lower() in r["summary"].lower()
-    assert "/acre" in r["summary"]
+    best = max(r["options"][1:], key=lambda o: o["rank_score"])
+    cur = r["options"][0]
+    assert best["label"].lower() in r["summary"].lower() or "staying with" in r["summary"].lower()
+    assert cur["label"].lower() in r["summary"].lower()
+    assert "$" not in r["summary"]              # dollars live in the details, not the headline
 
 
 def test_irrigation_method_and_water_source():
@@ -120,14 +122,13 @@ def test_irrigation_method_and_water_source():
             pass
 
 
-def test_top5_is_ranked_by_money():
+def test_top5_is_ranked_by_fit_water_income_soil():
     r = report()
-    shown = [o["crop"] for o in r["options"][1:]]
-    # the 4 shown are the 4 best scores among everything that fits
-    everyone = report(area_crops=None)
-    scores = sorted((o["score"] for o in everyone["options"][1:]), reverse=True)
-    assert [o["score"] for o in r["options"][1:]] == scores
-    assert r["options"][1]["tag"] == "best_overall" and len(shown) == 4
+    shown = r["options"][1:]
+    # the 4 shown are the 4 best rank scores (water + income tier + soil), money breaks ties
+    keys = [(o["rank_score"], o["score"]) for o in shown]
+    assert keys == sorted(keys, reverse=True)
+    assert shown[0]["tag"] == "best_overall" and len(shown) == 4
 
 
 def test_huge_outline_is_rejected_not_hung():
@@ -413,6 +414,53 @@ def test_snowpack_auto_in_report():
         r = build_report(FIELD, "corn_silage", "full", crops=CROPS, climate=DEFAULT_CLIMATE,
                          location=IDAHO, snowpack="auto")
     assert r["snowpack"]["level"] == "normal" and "unavailable" in r["snowpack"]["source"]
+
+
+def test_cards_tiers_and_priority_ranking():
+    from app.engine import income_vs_current, water_risk
+    r = report(water_supply="limited")
+    cur = r["options"][0]
+    assert cur["card"]["income_vs_current"] == "current"
+    for o in r["options"]:
+        c = o["card"]
+        assert c["water_risk"] in ("low", "medium", "high")
+        assert c["soil"] in ("builds", "neutral", "hard")
+        assert c["water_text"] and c["income_text"]
+    # options after the current crop are sorted by rank
+    ranks = [o["rank_score"] for o in r["options"][1:]]
+    assert ranks == sorted(ranks, reverse=True)
+    assert "$" not in r["summary"]
+    assert r["money_note"]
+
+    # tiers from simple numbers
+    mk = lambda met, exp: {"by_year_type": {"dry": {"water_met_pct": met}}, "expected_profit_per_acre": exp}
+    assert [water_risk(mk(m, 0)) for m in (95, 80, 60)] == ["low", "medium", "high"]
+    base = mk(100, 100)
+    assert [income_vs_current(mk(100, 100 + d), base) for d in (600, 200, 0, -200, -600)] == \
+        ["much_higher", "higher", "similar", "lower", "much_lower"]
+
+    # watch-outs show up for contract crops
+    r2 = report(area_crops=[{"crop": "onions"}, {"crop": "winter_wheat"}, {"crop": "dry_beans"}])
+    onion = next((o for o in r2["options"] if o["crop"] == "onions"), None)
+    assert onion and any("contract" in w for w in onion["card"]["watch_outs"])
+
+
+def test_priorities_change_the_order_and_are_validated():
+    water_first = report(water_supply="short", priorities={"water": 1, "income": 0, "soil": 0})
+    money_first = report(water_supply="short", priorities={"water": 0, "income": 1, "soil": 0})
+    assert abs(sum(water_first["priorities"].values()) - 1) < 0.01
+    risk_rank = {"low": 0, "medium": 1, "high": 2}
+    w = [risk_rank[o["card"]["water_risk"]] for o in water_first["options"][1:]]
+    assert w == sorted(w)                                   # least water risk first
+    inc_rank = {"much_higher": 0, "higher": 1, "similar": 2, "lower": 3, "much_lower": 4}
+    m = [inc_rank[o["card"]["income_vs_current"]] for o in money_first["options"][1:]]
+    assert m == sorted(m)                                   # highest income tier first
+    for bad in ({"water": -1}, {"luck": 1}, {"water": 0, "income": 0, "soil": 0}):
+        try:
+            report(priorities=bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"expected ValueError for {bad}")
 
 
 if __name__ == "__main__":

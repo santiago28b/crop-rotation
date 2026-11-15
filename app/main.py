@@ -35,6 +35,9 @@ class ReportRequest(BaseModel):
     # Optional {crop id: inches}: water needs computed for this location by the agronomy
     # engine (FAO-56). Used only outside southwest Idaho, where the table doesn't apply.
     crop_water_need_in: dict[str, float] | None = None
+    # Optional farmer weights for ranking, e.g. {"water": 2, "income": 1, "soil": 1}.
+    # Scaled to sum to 1. Default: water 0.45, income 0.35, soil 0.20.
+    priorities: dict[str, float] | None = None
 
 
 @app.get("/health")
@@ -60,6 +63,7 @@ def report(req: ReportRequest):
             irrigation_method=req.irrigation_method,
             water_source=req.water_source,
             crop_water_need_in=req.crop_water_need_in,
+            priorities=req.priorities,
         )
     except (ValueError, KeyError) as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -56,12 +56,19 @@ Only crops the agronomy engine kept are compared (sent as `area_crops`).
    Extra hot days take a further small cut.
 5. **Profit** = yield x price - cost, per year type. Yields and prices are the
    state's USDA NASS averages; costs come from University of Idaho budgets.
-6. **Score** = expected profit - 0.5 x (expected profit - dry-year profit).
-   Expected profit weights each year type by its odds. The second term
-   penalizes a crop that collapses when water is short.
-7. **Top 5** = the current crop plus the 4 best scores. Tags say what each is
-   best at among those shown (best overall, safest in a dry year, best for soil).
-8. **Summary** — two or three plain sentences built from the ranking.
+6. **Money score** = expected profit - 0.5 x (expected profit - dry-year profit).
+   Kept for the details view and to break ties; not shown as the headline.
+7. **Card tiers** (what the farmer sees first):
+   - Water risk in a dry year: low (90%+ of need met), medium (70-90%), high (under 70%).
+   - Income vs. the current crop: much higher (+$500/acre or more), higher (+$150),
+     about the same, lower, much lower. A comparison, because cost errors shared by
+     both crops (land, equipment) mostly cancel out.
+   - Soil: helps / neutral / hard on soil, from the crop's soil score.
+   - Watch-outs: contracts, storage, special equipment, perennials.
+8. **Ranking** = the farmer's priorities over those tiers. Default weights:
+   water 0.45, income 0.35, soil 0.20 (send `priorities` to change them).
+   Top 5 = the current crop plus the 4 best. Ties go to the higher money score.
+9. **Summary**: plain sentences built from the tiers, with no dollar amounts.
 
 Rotation rules also apply here: a crop that should not follow the current one
 (shared disease, or a no-repeat crop) is excluded, with the reason.
@@ -82,7 +89,7 @@ A corn silage field near Caldwell, ID, with a **short** water supply (live run,
 - Dry beans need less water (66% met in the same dry year), so they lose less
   than corn in every year type and rank above it.
 
-That is the whole logic: water risk, priced in dollars.
+That is the logic underneath. The farmer sees it as tiers (water risk, income vs. now, soil), because exact profit depends on their own costs.
 
 ## What is real and what is judgment
 
@@ -92,7 +99,7 @@ NASS), costs (U of Idaho / OSU budgets), water needs (AgriMet, FAO-56), Ky
 (FAO-33). Citations: `docs/data-sources.md`.
 
 Judgment, stated in every response under `assumptions`: the 42 in irrigation
-allotment, the dry-year delivery cut, the 0.5 risk weight, nitrogen credits,
+allotment, the dry-year delivery cut, the 0.5 risk weight, the tier cutoffs and default priorities, nitrogen credits,
 soil scores, heat sensitivity, and how far snowpack shifts the odds.
 
 ## Outside southwest Idaho
