@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, toRaw, watch } from 'vue'
 import { getCatalog, getFieldProfile, isHistoryPending, pollFieldHistory } from '../api.js'
+import SatelliteLoader from './SatelliteLoader.vue'
 
 const props = defineProps({
   fields: { type: Array, required: true },
@@ -279,10 +280,7 @@ function continueWithConfirmedHistory() {
 
         <section v-if="currentState.profileStatus === 'loading'" class="field-info-card" aria-labelledby="profile-loading-title">
           <h2 id="profile-loading-title">What we found</h2>
-          <p class="history-status" role="status">
-            <span class="inline-spinner" aria-hidden="true"></span>
-            <span>Loading soil and climate data for this field…</span>
-          </p>
+          <SatelliteLoader />
         </section>
 
         <section v-else-if="currentProfile" class="field-info-card" aria-labelledby="profile-title">
